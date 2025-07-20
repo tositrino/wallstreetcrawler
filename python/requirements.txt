@@ -1,0 +1,10 @@
+black
+matplotlib
+numpy
+openpyxl
+pandas
+pillow
+praw
+torch
+torchvision
+torchaudio
