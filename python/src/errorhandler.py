@@ -39,7 +39,8 @@ def debug_print(thresh: int, *vargs, **kwargs):
     print(*vargs, file=sio, end="")
     if config.logging:
         logging.debug(sio.getvalue())
-    print_ub(sio.getvalue(), **kwargs)
+    if config.debug_level >= thresh:
+        print_ub(sio.getvalue(), **kwargs)
     return 0
 
 
@@ -57,7 +58,8 @@ def verbose_print(thresh, *vargs, **kwargs):
     print(*vargs, file=sio, end="")
     if config.logging:
         logging.info(sio.getvalue())
-    print_ub(sio.getvalue(), **kwargs)
+    if config.verbose_level >= thresh:
+        print_ub(sio.getvalue(), **kwargs)
     return 0
 
 

@@ -1,0 +1,74 @@
+#
+# NOTE! Please use 'git ls-files -i --exclude-standard'
+# command after changing this file, to see if there are
+# any tracked files which get ignored after the change.
+#
+# ignore logs and file that don't belong here
+*.log
+*.mo
+*.o
+*.obj
+*.out
+*.sxx
+*.ver
+# apple crap
+.DS_Store
+._*
+.AppleDouble
+.LSOverride
+# note : Icon must end with two \r
+Icon
+.Spotlight-V100
+.Trashes
+## no builds
+bin
+build
+builds
+# do not checkin secrets/credentials
+credentials
+## do not include documentation_html directories (doxygen generated stuff)
+documentations_html
+## do not include intermediate_data directories (as the name says)
+intermediate_data
+## python specific
+venv/
+venv*/
+gpuenv/
+gpuenv*/
+__pychache__
+work
+*.bak
+*.pyc
+.idea
+.python_version
+# rust/cargo
+*.lock
+target
+# studio/ms crap
+*.tlog
+*.lib
+*.dll
+*.exe
+# vs specific files:
+*.ilk
+*.sdf
+*.ipch
+*.pch
+*.idb
+*.pdb
+*.lastbuildstate
+*.xdc
+# vscode stuff
+*/.dist
+*/.vscode
+# idea/grade/build
+/build/
+/.idea/
+/.gradle/
+# project specific
+# no prefs and saves
+*.prefs
+data/games/
+data/logs/
+data/crop/
+.fake

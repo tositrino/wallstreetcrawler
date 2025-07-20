@@ -3,7 +3,7 @@ reddit.py - reddit settings
 
 """
 
-work_directory = "../data/reddit"
+work_directory = "../intermediate_data/reddit"
 result_file_name = "reddit-crawler-results"
 
 trigger_count = 5

@@ -90,16 +90,13 @@ def show_status():
         vblth, "  logging level                   = {0}".format(config.log_level)
     )
     eh.verbose_print(
+        vblth, "  log_directory                   = {0}".format(config.log_directory)
+    )
+    eh.verbose_print(
         vblth, "  log file name                   = {0}".format(config.log_file_name)
     )
     eh.verbose_print(
         vblth, "  log file mode                   = {0}".format(config.log_file_mode)
-    )
-    eh.verbose_print(
-        vblth, "  log_directory                   = {0}".format(config.log_directory)
-    )
-    eh.verbose_print(
-        vblth, "  model_directory                 = {0}".format(config.model_directory)
     )
     eh.verbose_print(
         vblth, "  data_directory                  = {0}".format(config.data_directory)
@@ -241,20 +238,23 @@ def main():
         config.log_file_name = sys.argv[0] + ".log"
     if args.logging:
         config.logging = True
-        if config.debug_level > 0:
-            config.log_level = logging.DEBUG
-        else:
-            config.log_level = logging.INFO
     if args.nologging:
         config.logging = False
     if config.logging:
+        if config.log_level is None:
+            if config.debug_level > 0:
+                config.log_level = logging.DEBUG
+            else:
+                config.log_level = logging.INFO
+        os.makedirs(config.log_directory, exist_ok=True)
         logging.basicConfig(
-            filename=config.log_file,
+            filename=os.path.join(config.log_directory, config.log_file_name),
             filemode=config.log_file_mode,
             format="%(asctime)s,%(msecs)d %(name)s %(levelname)s %(message)s",
             datefmt="%H:%M:%S",
             level=config.log_level,
         )
+        logging.info("Logging initialized")
 
     if args.clean:
         config.clean_mode = 1
@@ -301,22 +301,28 @@ def main():
 
     if main_status == 0:
 
+        nasdaq_handler = nh.NasdaqHandler()
+        reddit_handler = rh.RedditHandler()
         # do we download and process nasdaq listings ?
         if args.nasdaq_download is not None and args.nasdaq_download == True:
             eh.debug_print(
                 dblth,
                 f"DEBUG: download and process nasdaq listings from [{config.nasdaq.source_url}]",
             )
-            nh.download_and_process_nasdaq_listings()
+            nasdaq_handler.download_and_prepare()
 
-        # do we crawl thoeugh the reddit posts ?
+        # make sure the pkl file path is set after nsdaq_download
+        config.nasdaq.pkl_file_path = os.path.join(
+            config.nasdaq.work_directory, f"{config.nasdaq.result_file_name}.pkl"
+        )
+
+        # do we crawl through the reddit posts ?
         if args.crawl is not None and args.crawl == True:
             eh.debug_print(
                 dblth,
                 f"DEBUG: crawl through the reddit posts [{config.reddit.use_subreddit}]",
             )
-            rh.reddit_crawler()
-
+            reddit_handler.crawler()
     # all done here
     main_elapsed = time.time() - main_start
     eh.debug_print(

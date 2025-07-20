@@ -22,6 +22,11 @@ import config.main as config
 # local modules
 import src.errorhandler as eh
 
+# helper functions
+# helper function to drop duplicates based on word comparison
+# this function extends pandas' drop_duplicates by allowing comparison of only the first N words in string  columns
+# with optional case-insensitive matching
+
 
 def drop_duplicates_with_word_comparison(
     df,
@@ -165,201 +170,269 @@ def drop_duplicates_with_word_comparison(
         return result_df
 
 
-def download_and_process_nasdaq_listings(
-    url=config.nasdaq.source_url,
-    target_dir=config.nasdaq.work_directory,
-    file_name=config.nasdaq.original_file_name,
-    result_name=config.nasdaq.result_file_name,
-    add_prefix=config.nasdaq.add_dollar_sign,
-):
-    """
-    Download NASDAQ listings CSV, process it, and save in multiple formats.
-    """
-    fn_name = "download_and_process_nasdaq_listings"
-    fn_start = time.time()
-    fn_status = 0
-    eh.verbose_print(
-        1,
-        f"{__name__}.{fn_name} - start:",
-    )
-    try:
-        # make sure the target directory exists
-        if os.path.exists(target_dir):
-            eh.debug_print(
-                1, f"{__name__}.{fn_name} - target directory [{target_dir}] exists"
-            )
-        else:  # create target directory if it does not exist
-            eh.debug_print(
-                1,
-                f"{__name__}.{fn_name} - target directory [{target_dir}] does not exist, creating it",
-            )
-            os.makedirs(target_dir, exist_ok=True)
+# nasdaq handler class
+# this class handles the download and processing of the nasdaq data
 
-        original_csv = os.path.join(target_dir, f"{file_name}.csv")
-        if not os.path.exists(original_csv) or config.force_mode:
-            # Download the CSV file
+
+class NasdaqHandler:
+    def __init__(
+        self,
+        url=config.nasdaq.source_url,
+        target_dir=config.nasdaq.work_directory,
+        file_name=config.nasdaq.original_file_name,
+        result_name=config.nasdaq.result_file_name,
+        add_prefix=config.nasdaq.add_dollar_sign,
+        vblth=config.verbose_threshold,
+        dblth=config.debug_threshold,
+    ):
+        self.class_name = "NasdaqHandler"
+        self.url = url
+        self.target_dir = target_dir
+        self.file_name = file_name
+        self.result_name = result_name
+        self.add_prefix = add_prefix
+        self.vblth = vblth
+        self.dblth = dblth
+        self.original_csv = None
+        self.result_csv = None
+        self.original_xlsx = None
+        self.result_xlsx = None
+        self.result_pkl = None
+        self.df = None
+        self.df_filtered = None
+        self.df_final = None
+        self.symbols_list = None
+
+    def download_and_prepare(self):
+        """
+        download and prepare nasdaq data and save it
+        """
+        method_name = "download_and_prepare"
+        method_start = time.time()
+        method_status = 0
+
+        eh.verbose_print(
+            self.vblth,
+            f"{self.class_name}.{method_name} - start:",
+        )
+        try:
+            # make sure the target directory exists
+            if os.path.exists(self.target_dir):
+                eh.debug_print(
+                    self.dblth,
+                    f"{self.class_name}.{method_name} - target directory [{self.target_dir}] exists",
+                )
+            else:  # create target directory if it does not exist
+                eh.debug_print(
+                    self.dblth,
+                    f"{self.class_name}.{method_name} - target directory [{self.target_dir}] does not exist, creating it",
+                )
+                os.makedirs(self.target_dir, exist_ok=True)
+
+            # download the csv file
+            self.original_csv = os.path.join(self.target_dir, f"{self.file_name}.csv")
+            if not os.path.exists(self.original_csv) or config.force_mode:
+                # Download the CSV file
+                eh.verbose_print(
+                    self.vblth,
+                    f"{self.class_name}.{method_name} - download data from {self.url}  ... ",
+                    end="",
+                )
+                response = requests.get(self.url)
+                response.raise_for_status()  # Raise an exception for bad status codes
+
+                # Save the downloaded content
+                with open(self.original_csv, "wb") as f:
+                    f.write(response.content)
+                eh.verbose_print(self.vblth, "[done]")
+
+            # Read the CSV file
             eh.verbose_print(
-                1,
-                f"{__name__}.{fn_name} - download data from {url}  ... ",
+                self.vblth,
+                f"{self.class_name}.{method_name} - reading data from [{self.original_csv}] ... ",
                 end="",
             )
-            response = requests.get(url)
-            response.raise_for_status()  # Raise an exception for bad status codes
+            self.df = pd.read_csv(self.original_csv, encoding="utf-8", low_memory=False)
+            eh.verbose_print(self.vblth, "[done]")
 
-            # Save the downloaded content
-            with open(original_csv, "wb") as f:
-                f.write(response.content)
-            eh.verbose_print(1, "[done]")
-
-        # Read the CSV file
-        eh.verbose_print(
-            1,
-            f"{__name__}.{fn_name} - reading data from [{original_csv}] ... ",
-            end="",
-        )
-        df = pd.read_csv(original_csv, encoding="utf-8", low_memory=False)
-        eh.verbose_print(1, "[done]")
-
-        eh.verbose_print(
-            1, f"{__name__}.{fn_name} - original dataset contains {len(df)} records"
-        )
-        eh.verbose_print(1, f"{__name__}.{fn_name} - columns {list(df.columns)}")
-
-        # create excel file from original data
-        original_xlsx = os.path.join(target_dir, f"{file_name}.xlsx")
-        if not os.path.exists(original_xlsx) or config.force_mode:
             eh.verbose_print(
-                1,
-                f"{__name__}.{fn_name} - creating excel file [{original_xlsx} ] from data ... ",
+                self.vblth,
+                f"{self.class_name}.{method_name} - original dataset contains {len(self.df)} records",
+            )
+            eh.verbose_print(
+                self.vblth,
+                f"{self.class_name}.{method_name} - columns {list(self.df.columns)}",
+            )
+
+            # create excel file from original data
+            self.original_xlsx = os.path.join(self.target_dir, f"{self.file_name}.xlsx")
+            if not os.path.exists(self.original_xlsx) or config.force_mode:
+                eh.verbose_print(
+                    self.vblth,
+                    f"{self.class_name}.{method_name} - creating excel file [{self.original_xlsx} ] from data ... ",
+                    end="",
+                )
+                self.df.to_excel(self.original_xlsx, index=False)
+                eh.verbose_print(self.vblth, "[done]")
+
+            # Filter out ETF entries (where ETF property is 'Y')
+            eh.verbose_print(
+                self.vblth,
+                f"{self.class_name}.{method_name} - filter out ETF entries ... ",
                 end="",
             )
-            df.to_excel(original_xlsx, index=False)
-            eh.verbose_print(1, "[done]")
-
-        # Filter out ETF entries (where ETF property is 'Y')
-        eh.verbose_print(
-            1,
-            f"{__name__}.{fn_name} - filter out ETF entries ... ",
-            end="",
-        )
-        df_filtered = df[df["ETF"] != "Y"].copy()
-        eh.verbose_print(1, f"[done, {len( df_filtered)} records remaining]")
-
-        # Remove duplicates based on Company Name, keeping first occurrence
-        print("Removing duplicate company names...")
-        eh.verbose_print(
-            1,
-            f"{__name__}.{fn_name} - removing duplicate entries for company name ... ",
-            end="",
-        )
-        # df_final = df_filtered.drop_duplicates(subset=["Company Name"], keep="first")
-        df_final = drop_duplicates_with_word_comparison(
-            df_filtered,
-            subset=["Company Name"],
-            compare_words=config.nasdaq.compare_words,
-            case_sensitive=config.nasdaq.compare_case_sensitive,
-            keep="first",
-            inplace=False,
-            ignore_index=True,
-        )
-        eh.verbose_print(1, f"[done, {len(df_final)} records remaining]")
-
-        if add_prefix:
-            # Add a dollar sign prefix to the Symbol column
+            self.df_filtered = self.df[self.df["ETF"] != "Y"].copy()
             eh.verbose_print(
-                1,
-                f"{__name__}.{fn_name} - adding dollar sign prefix to Symbol column ... ",
+                self.vblth, f"[done, {len( self.df_filtered)} records remaining]"
+            )
+
+            # Remove duplicates based on Company Name, keeping first occurrence
+            print("Removing duplicate company names...")
+            eh.verbose_print(
+                self.vblth,
+                f"{self.class_name}.{method_name} - removing duplicate entries for company name ... ",
                 end="",
             )
-            df_final["Symbol"] = "$" + df_final["Symbol"].astype(str)
-            # df_final["Symbol"] = df_final["Symbol"].apply(
-            #    lambda x: f"${x}" if isinstance(x, str) else x
-            # )
-            eh.verbose_print(1, "[done]")
-
-        # Save the final dataset as csv file
-        result_csv = os.path.join(target_dir, f"{result_name}.csv")
-        eh.verbose_print(
-            1,
-            f"{__name__}.{fn_name} - saving cleaned data as csv file [{result_csv}] ... ",
-            end="",
-        )
-        df_final.to_csv(result_csv, index=False)
-        eh.verbose_print(1, f"[done]")
-
-        # save the final dataset as excel file
-        result_xlsx = os.path.join(target_dir, f"{result_name}.xlsx")
-        eh.verbose_print(
-            1,
-            f"{__name__}.{fn_name} - saving cleaned data as excel file [{result_xlsx}] ... ",
-            end="",
-        )
-        df_final.to_excel(result_xlsx, index=False)
-        eh.verbose_print(1, f"[done]")
-
-        # Save the final cleaned dataset as pickle file
-        result_pkl = os.path.join(target_dir, f"{result_name}.pkl")
-        config.nasdaq.pkl_file_name = result_pkl
-        eh.verbose_print(
-            1,
-            f"{__name__}.{fn_name} - saving cleaned data as pickle file [{result_pkl}] ... ",
-            end="",
-        )
-        symbols_list = df.iloc[0:, 0].dropna().tolist()
-        # Save the symbols list as a pickle file
-        pickle.dump(symbols_list, open(result_pkl, "wb"))
-        eh.verbose_print(1, f"[done]")
-
-        if config.debug_level > 0:
-            eh.debug_print(
-                1,
-                f"{__name__}.{fn_name} - debug mode enabled, load and show pickle content:",
+            # self.df_final = df_filtered.drop_duplicates(subset=["Company Name"], keep="first")
+            self.df_final = drop_duplicates_with_word_comparison(
+                self.df_filtered,
+                subset=["Company Name"],
+                compare_words=config.nasdaq.compare_words,
+                case_sensitive=config.nasdaq.compare_case_sensitive,
+                keep="first",
+                inplace=False,
+                ignore_index=True,
             )
-            eh.debug_print(1, f" final data frame head:\n{df_final.head}")
-            eh.debug_print(1, f":load and show pickle content ... ", end="")
-            with open(result_pkl, "rb") as f:
-                pkl_data = pickle.load(f)
-            eh.verbose_print(1, f"[done]\n{pkl_data}")
+            eh.verbose_print(
+                self.vblth, f"[done, {len(self.df_final)} records remaining]"
+            )
 
-        #  clean up temporary file
-        # os.remove("temp_nasdaq.csv")
-        eh.verbose_print(1, f"{__name__}.{fn_name} - process completed successfully!")
-        eh.verbose_print(1, "\nProcess completed successfully!")
-        eh.verbose_print(1, f"Files created:")
-        eh.verbose_print(1, f"- {original_csv} ({len(df)} records)")
-        eh.verbose_print(1, f"- {original_xlsx} ({len(df)} records)")
-        eh.verbose_print(1, f"- {result_csv} ({len(df_final)} records)")
-        eh.verbose_print(1, f"- {result_xlsx} ({len(df_final)} records)")
-        eh.verbose_print(1, f"- {result_pkl} ({len(symbols_list)} records)")
+            if self.add_prefix:
+                # Add a dollar sign prefix to the Symbol column
+                eh.verbose_print(
+                    self.vblth,
+                    f"{self.class_name}.{method_name} - adding dollar sign prefix to Symbol column ... ",
+                    end="",
+                )
+                self.df_final["Symbol"] = "$" + self.df_final["Symbol"].astype(str)
+                # df_final["Symbol"] = df_final["Symbol"].apply(
+                #    lambda x: f"${x}" if isinstance(x, str) else x
+                # )
+                eh.verbose_print(self.vblth, "[done]")
 
-        # Show some statistics
-        eh.verbose_print(1, f"\nSummary:")
-        eh.verbose_print(1, f"- Original records: {len(df)}")
-        eh.verbose_print(1, f"- ETF entries removed: {len(df) - len(df_filtered)}")
+            # Save the final dataset as csv file
+            self.result_csv = os.path.join(self.target_dir, f"{self.result_name}.csv")
+            eh.verbose_print(
+                self.vblth,
+                f"{self.class_name}.{method_name} - saving cleaned data as csv file [{self.result_csv}] ... ",
+                end="",
+            )
+            self.df_final.to_csv(self.result_csv, index=False)
+            eh.verbose_print(self.vblth, f"[done]")
+
+            # save the final dataset as excel file
+            self.result_xlsx = os.path.join(self.target_dir, f"{self.result_name}.xlsx")
+            eh.verbose_print(
+                self.vblth,
+                f"{self.class_name}.{method_name} - saving cleaned data as excel file [{self.result_xlsx}] ... ",
+                end="",
+            )
+            self.df_final.to_excel(self.result_xlsx, index=False)
+            eh.verbose_print(self.vblth, f"[done]")
+
+            # Save the final cleaned dataset as pickle file
+            self.result_pkl = os.path.join(self.target_dir, f"{self.result_name}.pkl")
+            eh.verbose_print(
+                self.vblth,
+                f"{self.class_name}.{method_name} - saving cleaned symbol data as pickle file [{self.result_pkl}] ... ",
+                end="",
+            )
+            symbols_list = self.df.iloc[0:, 0].dropna().tolist()
+            # Save the symbols list as a pickle file
+            pickle.dump(symbols_list, open(self.result_pkl, "wb"))
+            eh.verbose_print(self.vblth, f"[done]")
+
+            if config.debug_level > 0:
+                eh.debug_print(
+                    self.vblth,
+                    f"{self.class_name}.{method_name} - debug mode enabled, load and show pickle content:",
+                )
+                eh.debug_print(
+                    self.vblth, f" final data frame head:\n{self.df_final.head}"
+                )
+                eh.debug_print(
+                    self.vblth, f":load and show pickle content ... ", end=""
+                )
+                with open(self.result_pkl, "rb") as f:
+                    pkl_data = pickle.load(f)
+                eh.verbose_print(self.vblth, f"[done]\n{pkl_data}")
+
+            eh.verbose_print(
+                self.vblth,
+                f"{self.class_name}.{method_name} - process completed successfully!",
+            )
+
+        except requests.exceptions.RequestException as e:
+            method_status = -1
+            print(f"Error downloading file: {e}")
+        except pd.errors.EmptyDataError:
+            method_status = -1
+            print("Error: The downloaded file is empty or corrupted")
+        except KeyError as e:
+            method_status = -1
+            print(f"Error: Expected column not found in CSV: {e}")
+            print(
+                "Available columns:",
+                list(self.df.columns) if "df" in locals() else "Could not read CSV",
+            )
+        except Exception as e:
+            method_status = -1
+            print(f"An unexpected error occurred: {e}")
+
+        self.summary()
+        method_elapsed = time.time() - method_start
         eh.verbose_print(
-            1, f"- Duplicate company names removed: {len(df_filtered) - len(df_final)}"
+            self.vblth,
+            f"{self.class_name}.{method_name} - finished, duration={method_elapsed:2.4f} second(s), status={method_status}:",
         )
-        eh.verbose_print(1, f"- Final records: {len(df_final)}")
 
-    except requests.exceptions.RequestException as e:
-        fn_status = -1
-        print(f"Error downloading file: {e}")
-    except pd.errors.EmptyDataError:
-        fn_status = -1
-        print("Error: The downloaded file is empty or corrupted")
-    except KeyError as e:
-        fn_status = -1
-        print(f"Error: Expected column not found in CSV: {e}")
-        print(
-            "Available columns:",
-            list(df.columns) if "df" in locals() else "Could not read CSV",
+    def summary(self):
+        """
+        Print a summary of the downloaded and processed data.
+        """
+        eh.verbose_print(
+            self.vblth,
+            f"{self.class_name} - Summary of downloaded and processed data:",
         )
-    except Exception as e:
-        fn_status = -1
-        print(f"An unexpected error occurred: {e}")
+        original_records = len(self.df) if self.df is not None else 0
+        filtered_records = len(self.df_filtered) if self.df_filtered is not None else 0
+        final_records = len(self.df_final) if self.df_final is not None else 0
+        symbol_records = len(self.symbols_list) if self.symbols_list is not None else 0
+        eh.verbose_print(self.vblth, f"Files created:")
+        eh.verbose_print(
+            self.vblth, f"- {self.original_csv} (#{original_records} record(s))"
+        )
+        eh.verbose_print(
+            self.vblth, f"- {self.original_xlsx} (#{original_records} record(s))"
+        )
+        eh.verbose_print(
+            self.vblth, f"- {self.result_csv} (#{final_records} record(s))"
+        )
+        eh.verbose_print(
+            self.vblth, f"- {self.result_xlsx} (#{final_records} record(s))"
+        )
+        eh.verbose_print(
+            self.vblth, f"- {self.result_pkl} (#{symbol_records} record(s))"
+        )
 
-    fn_elapsed = time.time() - fn_start
-    eh.verbose_print(
-        1,
-        f"{__name__}.{fn_name} - finisshed, duration={fn_elapsed:2.4f} second(s), status={fn_status}:",
-    )
+        eh.verbose_print(self.vblth, f"Records processed:")
+        eh.verbose_print(self.vblth, f"- Original records: #{original_records}")
+        eh.verbose_print(
+            self.vblth,
+            f"- ETF entries removed: #{ original_records - filtered_records}",
+        )
+        eh.verbose_print(
+            self.vblth,
+            f"- Duplicate company names removed: #{filtered_records - final_records}",
+        )
+        eh.verbose_print(self.vblth, f"- Final records: #{final_records}")

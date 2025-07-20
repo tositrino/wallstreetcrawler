@@ -1,0 +1,9 @@
+# wsclogo
+
+created with Chat-GPT/Dalle-E using the prompt:
+
+"can you create a logo showing a cockroach eating a 
+ dollar bill in comic style, maximum 200 colors and 128x128 pixel"
+ 
+ thanks to the all the unknown artist whose work was used to 
+ make this possible

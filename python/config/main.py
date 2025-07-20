@@ -33,7 +33,8 @@ clean_mode: bool = True
 
 logging: bool = True
 log_level = None
-log_file_name = None
+log_directory = "../intermediate_data/logs"
+log_file_name = "${APP_VERNAME}.log"
 log_file_mode = "w"
 
 max_errors = 1
@@ -52,8 +53,6 @@ env_file = f"~/lsr/etc/env/{APP_VERNAME}.env"
 
 # directory settings
 data_directory = "../data"
-log_directory = "../data/logs"
-model_directory = "../intermediate_data/models"
 
 # import all other configs here
 import config.nasdaq as nasdaq
