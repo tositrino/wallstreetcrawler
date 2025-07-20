@@ -227,7 +227,7 @@ class RedditHandler:
                 }
                 self.result_file_path = os.path.join(
                     config.reddit.work_directory,
-                    f"{config.reddit.result_file_name}-{self.run_id}",
+                    f"{config.reddit.result_file_name}-{self.run_id}.pkl",
                 )
                 eh.verbose_print(
                     1,

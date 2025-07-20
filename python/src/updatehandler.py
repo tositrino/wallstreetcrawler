@@ -40,7 +40,7 @@ class UpdateHandler:
         self.vblth = vblth
         self.dblth = dblth
 
-    def read_pickles(self, directory=config.nasdaq.work_directory):
+    def read_pickles(self, directory=config.reddit.work_directory):
         """read all pkl files from a given directory"""
         method_name = "read_pickles"
         method_start = time.time()
@@ -105,7 +105,7 @@ class UpdateHandler:
                 )
                 continue
             all_symbols.update(entry["results"].keys())
-            all_symbols = sorted(all_symbols)
+        all_symbols = sorted(all_symbols)
 
         for entry in data_list:
             if "results" not in entry:
