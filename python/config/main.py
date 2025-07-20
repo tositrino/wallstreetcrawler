@@ -8,10 +8,10 @@ import os
 # APP standard variables
 
 APP_VERNAME = "wallstreetcrawler"
-APP_VERID = "0.3.0"
+APP_VERID = "0.3.1"
 APP_VERINFO = "crawl through reddits and collect wallstreet infos"
 APP_RELDATE = "2025/07/20"
-APP_RELINFO = "v0.3.0"
+APP_RELINFO = "v0.3.1"
 APP_COPYRIGHT = "copyright (c) 2025 by development at ths dot one"
 APP_LICENSE = "GPL3"
 APP_LICENSEINFO = "please see ./LICENSE file in the main directory for further info"

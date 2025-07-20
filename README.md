@@ -14,7 +14,7 @@ but the code ist mostly done w/o claude ;-)
 
   | wallstreetcrawler ||
   |:--|:--|
-  | file version  | 0.3.0 |
+  | file version  | 0.3.1 |
   | file created  | 2025/07/17 |
   | last change   | 2025/07/20 |
   
@@ -40,11 +40,17 @@ but the code ist mostly done w/o claude ;-)
 ## references
 
 [1]  https://www.heise.de/ratgeber/Reddit-Crawler-fuer-Aktien-in-Python-bauen-So-geht-es-Schritt-fuer-Schritt-10442095.html
+
 [2]  https://www.heise.de/ratgeber/KI-Analyse-fuer-Aktien-Diskussionen-auf-Reddit-Anleitung-zum-Nachbauen-10482697.html?wt_mc
+
 [3]  https://www.nasdaqtrader.com/
+
 [4]  https://datahub.io/
+
 [5]  https://datahub.io/core/nasdaq-listings
+
 [6]  https://datahub.io/core/nyse-other-listings
+
 
 ## troubleshooting
 
