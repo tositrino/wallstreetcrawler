@@ -229,7 +229,7 @@ class UpdateHandler:
                 f"{self.class_name}.{method_name} - save updated result as {result_name} ... ",
                 end="",
             )
-            wb.save(output_path)
+            wb.save(result_path)
             eh.verbose_print(self.vblth, f"[done]")
         except Exception as e:
             method_status = -1
