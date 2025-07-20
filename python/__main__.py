@@ -27,6 +27,7 @@ import config.main as config
 import src.errorhandler as eh
 import src.nasdaqhandler as nh
 import src.reddithandler as rh
+import src.updatehandler as uh
 
 
 def show_version(mode: str = ""):
@@ -228,6 +229,12 @@ def main():
     parser.add_argument(
         "--status", "-s", help="show status and exit", action="store_true"
     )
+    parser.add_argument(
+        "--update",
+        help=f"update excel results",
+        action="store_true",
+        required=False,
+    )
     parser.add_argument("--verbose", "-v", help="be more verbose", action="store_true")
     parser.add_argument(
         "--version", "-V", help="show version and exit", action="store_true"
@@ -309,6 +316,7 @@ def main():
 
         nasdaq_handler = nh.NasdaqHandler()
         reddit_handler = rh.RedditHandler()
+        update_handler = uh.UpdateHandler()
         # do we download and process nasdaq listings ?
         if args.nasdaq_download is not None and args.nasdaq_download == True:
             eh.debug_print(
@@ -334,6 +342,14 @@ def main():
         if args.search is not None and len(args.search) > 0:
             for symbol in args.search:
                 reddit_handler.search(symbol)
+
+        # do we update something :
+        if args.update is not None and args.update == True:
+            eh.debug_print(
+                dblth,
+                f"DEBUG: update excel result file [{config.updates.excel_result_name}]",
+            )
+            update_handler.pickle_to_result()
 
     # all done here
     main_elapsed = time.time() - main_start

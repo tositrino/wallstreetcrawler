@@ -57,5 +57,6 @@ data_directory = "../data"
 # import all other configs here
 import config.nasdaq as nasdaq
 import config.reddit as reddit
+import config.updates as updates
 
 # end of main config
