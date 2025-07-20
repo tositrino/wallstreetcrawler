@@ -220,6 +220,12 @@ def main():
     )
     parser.add_argument("--quiet", "-q", help="be quiet", action="store_true")
     parser.add_argument(
+        "--search",
+        help=f"search [symbol] in reddit posts",
+        nargs="+",
+        required=False,
+    )
+    parser.add_argument(
         "--status", "-s", help="show status and exit", action="store_true"
     )
     parser.add_argument("--verbose", "-v", help="be more verbose", action="store_true")
@@ -323,6 +329,12 @@ def main():
                 f"DEBUG: crawl through the reddit posts [{config.reddit.use_subreddit}]",
             )
             reddit_handler.crawler()
+
+        # do we search something :
+        if args.search is not None and len(args.search) > 0:
+            for symbol in args.search:
+                reddit_handler.search(symbol)
+
     # all done here
     main_elapsed = time.time() - main_start
     eh.debug_print(

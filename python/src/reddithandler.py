@@ -47,6 +47,108 @@ class RedditHandler:
         self.symbol_counts = None
         self.result_data = None
         self.result_file_path = ""
+        self.prepared = False
+
+    def prepare(self) -> bool:
+        method_name = "prepare"
+        method_start = time.time()
+        method_status = 0
+        eh.verbose_print(
+            self.vblth, f"{self.class_name}.{method_name} - prepare handler", end=""
+        )
+        if self.prepared:
+            eh.verbose_print(1, " ... [already prepared]")
+        else:
+            eh.verbose_print(1, ":")
+            try:
+                eh.verbose_print(
+                    1,
+                    f"{self.class_name}.{method_name} - create object id ... ",
+                    end="",
+                )
+                self.run_id = datetime.datetime.now().strftime("%y%m%d-%H%M")
+                eh.verbose_print(1, f"[done, id=${self.run_id}]")
+
+                eh.verbose_print(
+                    1,
+                    f"{self.class_name}.{method_name} - initialize reddit object  ... ",
+                    end="",
+                )
+                self.reddit_client_id = os.getenv("REDDIT_CLIENT_ID")
+                self.reddit_client_secret = os.getenv("REDDIT_CLIENT_SECRET")
+                self.reddit_user = os.getenv("REDDIT_USER")
+                self.reddit_user_agent = os.getenv("REDDIT_USER_AGENT")
+                if (
+                    self.reddit_client_id is None
+                    or len(self.reddit_client_id) == 0
+                    or self.reddit_client_secret is None
+                    or len(self.reddit_client_secret) == 0
+                    or self.reddit_user is None
+                    or len(self.reddit_user) == 0
+                ):
+                    raise ValueError(
+                        "REDDIT_CLIENT_ID, REDDIT_CLIENT_SECRET or REDDIT_USER environment variables not set"
+                    )
+                if (self.reddit_user_agent is None or len(self.reddit_user_agent)) == 0:
+                    self.reddit_user_agent = f"{config.APP_VERNAME}/:v{config.APP_VERID} (by /u/{self.reddit_user})"
+                self.reddit = praw.Reddit(
+                    client_id=self.reddit_client_id,
+                    client_secret=self.reddit_client_secret,
+                    user_agent=self.reddit_user_agent,
+                )
+                eh.verbose_print(1, "[done]")
+                # make sure the target directory exists
+                if os.path.exists(self.target_dir):
+                    eh.debug_print(
+                        1,
+                        f"{self.class_name}.{method_name} - target directory [{self.target_dir}] exists",
+                    )
+                else:  # create target directory if it does not exist
+                    eh.debug_print(
+                        1,
+                        f"{self.class_name}.{method_name} - target directory [{self.target_dir}] does not exist, creating it",
+                    )
+                    os.makedirs(self.target_dir, exist_ok=True)
+
+                # load akronym data
+                eh.verbose_print(
+                    1,
+                    f"{self.class_name}.{method_name} - reading pickle data from [{self.pkl_file}] ... ",
+                    end="",
+                )
+                if self.pkl_file is None or len(self.pkl_file) == 0:
+                    self.pkl_file = os.path.join(
+                        config.nasdaq.work_directory,
+                        f"{config.nasdaq.result_file_name}.pkl",
+                    )
+                if not os.path.exists(self.pkl_file):
+                    raise FileNotFoundError(
+                        f"pkl file [{self.pkl_file}] does not exist, please run the nasdaq handler first"
+                    )
+                with open(self.pkl_file, "rb") as f:
+                    self.all_symbols = pickle.load(f)
+
+                self.symbols = [
+                    symbol
+                    for symbol in self.all_symbols
+                    if symbol not in config.reddit.blacklist
+                ]
+                eh.verbose_print(1, f"[done, found #{len(self.symbols)} symbol(s)]")
+                self.prepared = True
+            except Exception as e:
+                self.prepared = False
+                method_status = -1
+                eh.verbose_print(1, "[ERROR]")
+                eh.verbose_print(
+                    1, f"{self.class_name}.{method_name} - exception occurred: {e}"
+                )
+
+        method_elapsed = time.time() - method_start
+        eh.verbose_print(
+            1,
+            f"{self.class_name}.{method_name} - finished, duration={method_elapsed:2.4f} second(s), status={method_status}:",
+        )
+        return self.prepared
 
     def crawler(self):
 
@@ -57,82 +159,10 @@ class RedditHandler:
             self.vblth,
             f"{self.class_name}.{method_name} - start:",
         )
+        if not self.prepare():
+            return
 
         try:
-            eh.verbose_print(
-                1,
-                f"{self.class_name}.{method_name} - create object id ... ",
-                end="",
-            )
-            self.run_id = datetime.datetime.now().strftime("%y%m%d-%H%M")
-            eh.verbose_print(1, f"[done, id=${self.run_id}]")
-
-            eh.verbose_print(
-                1,
-                f"{self.class_name}.{method_name} - initialize reddit object  ... ",
-                end="",
-            )
-            self.reddit_client_id = os.getenv("REDDIT_CLIENT_ID")
-            self.reddit_client_secret = os.getenv("REDDIT_CLIENT_SECRET")
-            self.reddit_user = os.getenv("REDDIT_USER")
-            self.reddit_user_agent = os.getenv("REDDIT_USER_AGENT")
-            if (
-                self.reddit_client_id is None
-                or len(self.reddit_client_id) == 0
-                or self.reddit_client_secret is None
-                or len(self.reddit_client_secret) == 0
-                or self.reddit_user is None
-                or len(self.reddit_user) == 0
-            ):
-                raise ValueError(
-                    "REDDIT_CLIENT_ID, REDDIT_CLIENT_SECRET or REDDIT_USER environment variables not set"
-                )
-            if (self.reddit_user_agent is None or len(self.reddit_user_agent)) == 0:
-                self.reddit_user_agent = f"{config.APP_VERNAME}/:v{config.APP_VERID} (by /u/{self.reddit_user})"
-            self.reddit = praw.Reddit(
-                client_id=self.reddit_client_id,
-                client_secret=self.reddit_client_secret,
-                user_agent=self.reddit_user_agent,
-            )
-            eh.verbose_print(1, "[done]")
-            # make sure the target directory exists
-            if os.path.exists(self.target_dir):
-                eh.debug_print(
-                    1,
-                    f"{self.class_name}.{method_name} - target directory [{self.target_dir}] exists",
-                )
-            else:  # create target directory if it does not exist
-                eh.debug_print(
-                    1,
-                    f"{self.class_name}.{method_name} - target directory [{self.target_dir}] does not exist, creating it",
-                )
-                os.makedirs(self.target_dir, exist_ok=True)
-
-            # load akronym data
-            eh.verbose_print(
-                1,
-                f"{self.class_name}.{method_name} - reading pickle data from [{self.pkl_file}] ... ",
-                end="",
-            )
-            if self.pkl_file is None or len(self.pkl_file) == 0:
-                self.pkl_file = os.path.join(
-                    config.nasdaq.work_directory,
-                    f"{config.nasdaq.result_file_name}.pkl",
-                )
-            if not os.path.exists(self.pkl_file):
-                raise FileNotFoundError(
-                    f"pkl file [{self.pkl_file}] does not exist, please run the nasdaq handler first"
-                )
-            with open(self.pkl_file, "rb") as f:
-                self.all_symbols = pickle.load(f)
-
-            self.symbols = [
-                symbol
-                for symbol in self.all_symbols
-                if symbol not in config.reddit.blacklist
-            ]
-            eh.verbose_print(1, f"[done, found #{len(self.symbols)} symbol(s)]")
-
             eh.verbose_print(
                 1,
                 f"{self.class_name}.{method_name} - search for symbols in r/{config.reddit.use_subreddit} :",
@@ -140,8 +170,8 @@ class RedditHandler:
 
             # setup counter for symbol occurrences
             self.symbol_counts = Counter()
-            # load subreddit and get latest posts
 
+            # load subreddit and get latest posts
             subreddit = self.reddit.subreddit(config.reddit.use_subreddit)
             cutoff_time = datetime.datetime.now() - datetime.timedelta(
                 days=config.reddit.cutoff_days
@@ -231,3 +261,84 @@ class RedditHandler:
             1,
             f"{self.class_name}.{method_name} - finished, duration={method_elapsed:2.4f} second(s), status={method_status}:",
         )
+
+    def search(self, symbol):
+        method_name = "search"
+        method_start = time.time()
+        method_status = 0
+        results = []
+        total_count = 0
+        post_count = 0
+        comment_count = 0
+        total_matches = 0
+        eh.verbose_print(
+            self.vblth,
+            f"{self.class_name}.{method_name} - search symbol [{symbol}]:",
+        )
+        if not self.prepare():
+            eh.verbose_print(
+                1,
+                f"{self.class_name}.{method_name} - reddit object not initialized, please run crawler first",
+            )
+        else:
+            subreddit = self.reddit.subreddit(config.reddit.use_subreddit)
+            cutoff_time = datetime.datetime.now() - datetime.timedelta(
+                days=config.reddit.cutoff_days
+            )
+            # pattern = config.reddit.pattern_template.format(
+            #            symbol=re.escape(symbol)
+            #        )
+            pattern = re.compile(
+                r"(?<!\w)(\$"
+                + re.escape(symbol)
+                + r"|"
+                + re.escape(symbol)
+                + r")(?!\w)"
+            )
+            for post in subreddit.new(limit=config.reddit.post_limit):
+                post_time = datetime.datetime.fromtimestamp(post.created_utc)
+                if post_time < cutoff_time:
+                    continue
+                post_count += 1
+                post_text = post.title + "\n" + (post.selftext or "")
+                post_matches = pattern.findall(post_text)
+                comment_matches = []
+                try:
+                    post.comments.replace_more(config.reddit.comment_limit)
+                    for comment in post.comments.list():
+                        if hasattr(comment, "body"):
+                            comment_matches.extend(pattern.findall(comment.body))
+                            comment_count += 1
+                except:
+                    pass
+
+                total_matches = len(post_matches) + len(comment_matches)
+                if total_matches > 0:
+                    total_count += total_matches
+                    all_variants = post_matches + comment_matches
+                    variant_counts = {}
+                    for variant in all_variants:
+                        variant_counts[variant] = variant_counts.get(variant, 0) + 1
+
+                    results.append(
+                        {
+                            "title": post.title,
+                            "url": f"https://reddit.com{post.permalink}",
+                            "post_hits": len(post_matches),
+                            "comment_hits": len(comment_matches),
+                            "variants": variant_counts,
+                            "upvotes": post.score,
+                            "num_comments": post.num_comments,
+                        }
+                    )
+
+        method_elapsed = time.time() - method_start
+        eh.verbose_print(
+            1,
+            f"{self.class_name}.{method_name} - searched #{post_count} post(s) and #{comment_count} comment(s)\n results={results}\n",
+        )
+        eh.verbose_print(
+            1,
+            f"{self.class_name}.{method_name} - finished, duration={method_elapsed:2.4f} second(s), status={method_status}:",
+        )
+        return total_count, results
