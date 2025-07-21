@@ -27,6 +27,7 @@ class RedditHandler:
     def __init__(
         self,
         target_dir=config.reddit.work_directory,
+        posts_dir=config.reddit.posts_directory,
         pkl_file="",
         vblth=config.verbose_threshold,
         dblth=config.debug_threshold,
@@ -47,7 +48,44 @@ class RedditHandler:
         self.symbol_counts = None
         self.result_data = None
         self.result_file_path = ""
+        self.posts_dir = posts_dir
+        self.post_file_path = ""
         self.prepared = False
+        self.subreddit = None
+        self.cutoff_time = None
+        self.post_data = None
+        self.symbol_counts = None
+
+    def new_run_id(self):
+        """
+        generate a new run id
+        """
+        method_name = "new_run_id"
+        eh.verbose_print(
+            1,
+            f"{self.class_name}.{method_name} - create new object run id ... ",
+            end="",
+        )
+        self.run_id = datetime.datetime.now().strftime("%y%m%d-%H%M")
+        eh.verbose_print(1, f"[done, id=${self.run_id}]")
+        return self.run_id
+
+    def update_post_file_path(self):
+        """
+        update the post file path with the current run id
+        """
+        method_name = "update_post_file_path"
+        eh.verbose_print(
+            1,
+            f"{self.class_name}.{method_name} - update post file path ... ",
+            end="",
+        )
+        self.post_file_path = os.path.join(
+            self.posts_dir,
+            f"posts-{config.reddit.use_subreddit}-{self.run_id}.pkl",
+        )
+        eh.verbose_print(1, f"[done, path={self.post_file_path}]")
+        return self.post_file_path
 
     def prepare(self) -> bool:
         method_name = "prepare"
@@ -61,14 +99,7 @@ class RedditHandler:
         else:
             eh.verbose_print(1, ":")
             try:
-                eh.verbose_print(
-                    1,
-                    f"{self.class_name}.{method_name} - create object id ... ",
-                    end="",
-                )
-                self.run_id = datetime.datetime.now().strftime("%y%m%d-%H%M")
-                eh.verbose_print(1, f"[done, id=${self.run_id}]")
-
+                self.new_run_id()
                 eh.verbose_print(
                     1,
                     f"{self.class_name}.{method_name} - initialize reddit object  ... ",
@@ -110,6 +141,9 @@ class RedditHandler:
                     )
                     os.makedirs(self.target_dir, exist_ok=True)
 
+                # setup/update post data file path
+                self.update_post_file_path()
+
                 # load akronym data
                 eh.verbose_print(
                     1,
@@ -134,6 +168,14 @@ class RedditHandler:
                     if symbol not in config.reddit.blacklist
                 ]
                 eh.verbose_print(1, f"[done, found #{len(self.symbols)} symbol(s)]")
+
+                # set subreddit , cutoff time and initialize post data and symbol counter
+                self.subreddit = self.reddit.subreddit(config.reddit.use_subreddit)
+                self.cutoff_time = datetime.datetime.now() - datetime.timedelta(
+                    days=config.reddit.cutoff_days
+                )
+                self.post_data = []
+                self.symbol_counts = Counter()
                 self.prepared = True
             except Exception as e:
                 self.prepared = False
@@ -150,8 +192,93 @@ class RedditHandler:
         )
         return self.prepared
 
-    def crawler(self):
+    def extract_comments_with_hierarchy(self, post):
+        """
+        extract comments with hierarchy
+        """
+        comments_data = []
+        comments_count = 0
+        for comment in post.comments.list():
+            # check only comments with at least commment_min_upvotes upvotes
+            if comment.score >= config.reddit.commment_min_upvotes:
+                # parent_id starts with "t1_" means it is a reply to another comment
+                # parent_id starts with "t3_" means it is a direct reply to the post
+                is_reply = comment.parent_id.startswith("t1_")
+                comment_data = {
+                    "comment_id": comment.id,
+                    "body": comment.body,
+                    "upvotes": comment.score,
+                    "is_reply": is_reply,
+                    "parent_id": comment.parent_id,
+                }
+                comments_data.append(comment_data)
+                comments_count += 1
+        return comments_count, comments_data
 
+    def save_post_data(self):
+        """
+        save posts and comments data to a pickle file for mutliple use without having to crawl again
+        """
+        method_name = "save_posts_data"
+        method_start = time.time()
+        method_status = 0
+        eh.verbose_print(
+            self.vblth,
+            f"{self.class_name}.{method_name} - save post data to  [{self.post_file_path}] ... ",
+            end="",
+        )
+        if not self.prepared:
+            method_status = -1
+            eh.verbose_print(
+                self.vblth,
+                "[ERROR]\nERROR: reddit handler not prepared, please run prepare() first",
+            )
+        else:
+            with open(self.post_file_path, "wb") as f:
+                pickle.dump(self.post_data, f, protocol=pickle.HIGHEST_PROTOCOL)
+        method_elapsed = time.time() - method_start
+        eh.verbose_print(
+            self.vblth,
+            f"[done, saved #{len(self.post_data)} post(s), duration={method_elapsed:2.4f},, status={method_status}]",
+        )
+        return method_status
+
+    def load_post_data(self):
+        """
+        load posts and comments data from a pickle file
+        """
+        method_name = "load_posts_data"
+        method_start = time.time()
+        method_status = 0
+        eh.verbose_print(
+            self.vblth,
+            f"{self.class_name}.{method_name} - load post data from [{self.post_file_path}] ... ",
+            end="",
+        )
+        if not self.prepared:
+            method_status = -1
+            eh.verbose_print(
+                self.vblth,
+                "[ERROR]\nERROR: reddit handler not prepared, please run prepare() first",
+            )
+        else:
+            with open(os.path.join(self.post_file_path, file), "rb") as f:
+                self.post_data.append(pickle.load(f))
+            if self.post_data is None or len(self.post_data) == 0:
+                method_status = -1
+                eh.verbose_print(
+                    self.vblth,
+                    f"[ERROR]\nERROR - no post data found in [{self.post_file_path}]",
+                )
+
+        method_elapsed = time.time() - method_start
+        eh.verbose_print(
+            self.vblth,
+            f"[done, saved #{len(posts_data)} post(s), duration={method_elapsed:2.4f},, status={method_status}]",
+        )
+        return method_status
+
+    def crawler(self, force: bool = False):
         method_name = "crawler"
         method_start = time.time()
         method_status = 0
@@ -161,27 +288,32 @@ class RedditHandler:
         )
         if not self.prepare():
             return
+        if self.post_data is not None and len(self.post_data) > 0:
+            if not force:
+                eh.verbose_print(
+                    1,
+                    f"{self.class_name}.{method_name} - already crawled, please use --force to start a new crawl",
+                )
+                return method_status
+
+            # reset runid
+            self.new_run_id
+            # update post file path
+            self.update_post_file_path()
+            # reset counter for symbol occurrences
+            self.symbol_counts = Counter()
+            self.post_data = []
 
         try:
             eh.verbose_print(
                 1,
                 f"{self.class_name}.{method_name} - search for symbols in r/{config.reddit.use_subreddit} :",
             )
-
-            # setup counter for symbol occurrences
-            self.symbol_counts = Counter()
-
-            # load subreddit and get latest posts
-            subreddit = self.reddit.subreddit(config.reddit.use_subreddit)
-            cutoff_time = datetime.datetime.now() - datetime.timedelta(
-                days=config.reddit.cutoff_days
-            )
-
             post_count = 0
             comment_count = 0
-            for post in subreddit.new(limit=config.reddit.post_limit):
+            for post in self.subreddit.new(limit=config.reddit.post_limit):
                 post_time = datetime.datetime.fromtimestamp(post.created_utc)
-                if post_time < cutoff_time:
+                if post_time < self.cutoff_time:
                     continue
                 post_count += 1
                 eh.verbose_print(
@@ -194,6 +326,22 @@ class RedditHandler:
                 for comment in post.comments.list():
                     search_text += f" {comment.body}"
                     comment_count += 1
+
+                # create comment data
+                comments_data = self.extract_comments_with_hierarchy(post)
+                # create post data record
+                post_data = {
+                    "post_id": post.id,
+                    "title": post.title,
+                    "content": post.selftext,
+                    "upvotes": post.score,
+                    "created_utc": post.created_utc,
+                    "url": post.url,
+                    "comments": comments_data,
+                }
+                # and append to post_data
+                self.post_data.append(post_data)
+
                 # now search for each symbol in the search text
                 for symbol in self.symbols:
                     pattern = config.reddit.pattern_template.format(
@@ -209,6 +357,8 @@ class RedditHandler:
                 1,
                 f"{self.class_name}.{method_name} - finished search, searched #{post_count} post(s) and #{comment_count} comment(s)",
             )
+            # save posts data to file
+            self.save_post_data()
 
             # filter results
             filtered_results = {
@@ -276,15 +426,8 @@ class RedditHandler:
             f"{self.class_name}.{method_name} - search symbol [{symbol}]:",
         )
         if not self.prepare():
-            eh.verbose_print(
-                1,
-                f"{self.class_name}.{method_name} - reddit object not initialized, please run crawler first",
-            )
+            method_status = -1
         else:
-            subreddit = self.reddit.subreddit(config.reddit.use_subreddit)
-            cutoff_time = datetime.datetime.now() - datetime.timedelta(
-                days=config.reddit.cutoff_days
-            )
             # pattern = config.reddit.pattern_template.format(
             #            symbol=re.escape(symbol)
             #        )
@@ -295,9 +438,9 @@ class RedditHandler:
                 + re.escape(symbol)
                 + r")(?!\w)"
             )
-            for post in subreddit.new(limit=config.reddit.post_limit):
+            for post in self.subreddit.new(limit=config.reddit.post_limit):
                 post_time = datetime.datetime.fromtimestamp(post.created_utc)
-                if post_time < cutoff_time:
+                if post_time < self.cutoff_time:
                     continue
                 post_count += 1
                 post_text = post.title + "\n" + (post.selftext or "")

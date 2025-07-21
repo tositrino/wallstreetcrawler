@@ -3,9 +3,7 @@ reddithandler.py - handles reddit
 """
 
 # standard includes
-from collections import Counter, OrderedDict
-from docx import Document
-from docx.shared import Pt
+from collections import Counter
 import datetime
 import io
 import logging
@@ -86,79 +84,9 @@ class UpdateHandler:
         )
         return data_list
 
-    def read_latest_symbol_data(
-        self, directory=config.reddit.work_directory, latest_files=3
-    ):
-        """read the latest symbols from pickle files in a given directory"""
-        method_name = "read_latest_symbols"
-        method_start = time.time()
-        method_status = 0
-        eh.verbose_print(
-            self.vblth,
-            f"{self.class_name}.{method_name} - reading latest symbol data from [{directory}]:",
-        )
-        files = []
-        data_list = []
-        run_ids = []
-        results_list = []
-        error_count = 0
-        file_count = 0
-        for filename in os.listdir(directory):
-            if filename.endswith(".pkl") or filename.endswith(".pickle"):
-                files.append(filename)
-
-        if len(files) == 0:
-            eh.verbose_print(
-                self.vblth,
-                f"{self.class_name}.{method_name} - no pickle files found in {directory}",
-            )
-        else:
-            files_sorted = sorted(files, reverse=True)
-            files = []
-            for file in files_sorted:
-                file_count += 1
-                files.append(file)
-                eh.verbose_print(
-                    self.vblth,
-                    f"{self.class_name}.{method_name} - read [{file}] ... ",
-                    end="",
-                )
-                filepath = os.path.join(directory, file)
-                try:
-                    with open(filepath, "rb") as f:
-                        data = pickle.load(f)
-                        data_list.append(data)
-                    eh.verbose_print(self.vblth, f"[done]")
-                except Exception as e:
-                    error_count += 1
-                    eh.verbose_print(self.vblth, f"[ERROR]\nERROR reading {file}: {e}")
-                if latest_files > 0 and file_count >= latest_files:
-                    eh.verbose_print(
-                        self.vblth,
-                        f"{self.class_name}.{method_name} - reached limit of {latest_files} files, stopping",
-                    )
-                    break
-        # reorder results
-        files = files[::-1]
-        data_list = data_list[::-1]
-        run_ids = [d["run_id"] for d in data_list]
-        results_list = [d["results"] for d in data_list]
-        eh.verbose_print(
-            1,
-            f"{self.class_name}.{method_name} - read {file_count} file(s) with {error_count} error(s):",
-        )
-        if error_count != 0:
-            method_status = -1
-        method_elapsed = time.time() - method_start
-        eh.verbose_print(
-            1,
-            f"{self.class_name}.{method_name} - finished, duration={method_elapsed:2.4f} second(s), status={method_status}:",
-        )
-        return method_status, files, data_list, run_ids, results_list
-
     def create_dataframe(self, data_list):
         "create new dataframe with dynamic columns for all symbols"
-        method_name = "create_dataframe"
+        method_name = "read_pickles"
         method_start = time.time()
         method_status = 0
         eh.verbose_print(
@@ -173,7 +101,7 @@ class UpdateHandler:
             if "results" not in entry:
                 eh.verbose_print(
                     self.vblth,
-                    f"[ERROR] - 'results' key not found in entry:\n  {str(entry)[:50]} ...",
+                    f"[ERROR] - 'results' key not found in entry: {entry}",
                 )
                 continue
             all_symbols.update(entry["results"].keys())
@@ -183,7 +111,7 @@ class UpdateHandler:
             if "results" not in entry:
                 eh.verbose_print(
                     self.vblth,
-                    f"[ERROR] - 'results' key not found in entry:\n  {str(entry)[:50]} ...",
+                    f"[ERROR] - 'results' key not found in entry: {entry}",
                 )
                 continue
             row = {acronym: 0 for acronym in all_symbols}
@@ -206,9 +134,9 @@ class UpdateHandler:
         )
         return df
 
-    def save_excel_result(self, df, template_path=None, result_path=None) -> int:
-        "update and save results as excel file from a a preformatted template"
-        method_name = "save_excel_result"
+    def update_results(self, df, template_path=None, result_path=None) -> int:
+        "update a preformatted Excel template with new data"
+        method_name = "read_pickles"
         method_start = time.time()
         method_status = 0
         eh.verbose_print(
@@ -316,9 +244,9 @@ class UpdateHandler:
         )
         return method_status
 
-    def pickles_to_excel_result(self):
+    def pickle_to_result(self):
         "read pickle files and update result from an excel template with the data"
-        method_name = "pickles_to_excel_result"
+        method_name = "pickle_to_result"
         method_start = time.time()
         method_status = 0
         eh.verbose_print(self.vblth, f"{self.class_name}.{method_name} - start:")
@@ -339,7 +267,7 @@ class UpdateHandler:
             )
             return None
         # update results from excel template
-        success = self.save_excel_result(df)
+        success = self.update_results(df)
 
         if success:
             eh.verbose_print(
@@ -355,101 +283,3 @@ class UpdateHandler:
             f"{self.class_name}.{method_name} - finished, duration={method_elapsed:2.4f} second(s), status={method_status}:",
         )
         return df
-
-    def save_word_result(self, hits, file_name):
-        """update and save latest results as word documenta and pickle file"""
-        method_name = "save_word_result"
-        method_start = time.time()
-        method_status = 0
-        eh.verbose_print(
-            self.vblth, f"{self.class_name}.{method_name} - saving files ... :"
-        )
-        try:
-            # generate prefix from pkl filename
-            prefix = os.path.basename(file_name).split("_")[0]
-            # save as docx
-            doc = Document()
-            doc.add_heading("matches from pickle files", level=1)
-            for symbol, data in hits.items():
-                doc.add_heading(symbol, level=2)
-                for run_id, value in zip(data["run_ids"], data["values"]):
-                    p = doc.add_paragraph(f"{run_id}: {value}")
-                    p.style.font.size = Pt(12)
-                doc.add_paragraph("")
-            # save docx file
-            docx_filename = os.path.join(self.result_dir, f"{prefix}_hotleads.docx")
-            doc.save(docx_filename)
-            # save pickle file
-            pickle_filename = os.path.join(self.result_dir, f"{prefix}_hotleads.pkl")
-            with open(pickle_filename, "wb") as f:
-                pickle.dump(hits, f)
-        except Exception as e:
-            method_status = -1
-            eh.verbose_print(1, f"[ERROR]\nERROR - exception occurred: {e}")
-        method_elapsed = time.time() - method_start
-        eh.verbose_print(
-            1,
-            f"{self.class_name}.{method_name} - finished, duration={method_elapsed:2.4f} second(s), status={method_status}:",
-        )
-        return method_status
-
-    def pickles_to_word_result(self):
-        "read pickle files, update result and save as word document"
-        method_name = "pickles_to_word_result"
-        method_start = time.time()
-        method_status = 0
-        eh.verbose_print(self.vblth, f"{self.class_name}.{method_name} - start:")
-        # read pickle files
-        hits = None
-        status, files, data_list, run_ids, result_list = self.read_latest_symbol_data()
-        if (
-            files is not None
-            and len(files) > 0
-            and data_list is not None
-            and len(data_list) > 0
-        ):
-            eh.verbose_print(
-                self.vblth,
-                f"{self.class_name}.{method_name} - read {len(data_list)} symbol data entries from {len(files)} files ... ",
-                end="",
-            )
-            all_symbols = set()
-            for r in result_list:
-                all_symbols.update(r.keys())
-
-            hits = OrderedDict()
-            for symbol in all_symbols:
-                values = []
-                for r in result_list:
-                    values.append(r.get(symbol, 0))
-
-                latest_value = values[2]
-                prev_value = values[1]
-                avg_prev2 = (values[0] + values[1]) / 2
-
-                if (
-                    latest_value > prev_value
-                    or latest_value > avg_prev2
-                    or (values[0] == 0 and values[1] == 0 and latest_value > 0)
-                ):
-                    hits[symbol] = {"run_ids": run_ids, "values": values}
-            if hits is None or len(hits) == 0:
-                eh.verbose_print(self.vblth, f"[done, no valid symbol data found]]")
-            else:
-                eh.verbose_print(
-                    self.vblth, f"[done, found {len(hits)} valid symbol data entries]"
-                )
-                status = self.save_word_result(hits, files[-1])
-        if status != 0:
-            method_status = status
-        method_elapsed = time.time() - method_start
-        eh.verbose_print(
-            1,
-            f"{self.class_name}.{method_name} - finished, duration={method_elapsed:2.4f} second(s), status={method_status}:",
-        )
-        return method_status
-
-    def update_results(self):
-        "update results by calling all update functions"
-        self.pickles_to_excel_result()
-        self.pickles_to_word_result()

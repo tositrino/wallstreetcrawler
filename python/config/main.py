@@ -34,7 +34,7 @@ clean_mode: bool = True
 logging: bool = True
 log_level = None
 log_directory = "../intermediate_data/logs"
-log_file_name = "${APP_VERNAME}.log"
+log_file_name = f"{APP_VERNAME}.log"
 log_file_mode = "w"
 
 max_errors = 1

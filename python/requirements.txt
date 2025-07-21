@@ -6,6 +6,7 @@ openpyxl
 pandas
 pillow
 praw
+python-docx
 torch
 torchvision
 torchaudio

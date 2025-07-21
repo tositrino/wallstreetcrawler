@@ -28,6 +28,7 @@ import src.errorhandler as eh
 import src.nasdaqhandler as nh
 import src.reddithandler as rh
 import src.updatehandler as uh
+import src.hotleads as hl
 
 
 def show_version(mode: str = ""):
@@ -349,7 +350,7 @@ def main():
                 dblth,
                 f"DEBUG: update excel result file [{config.updates.excel_result_name}]",
             )
-            update_handler.pickle_to_result()
+            update_handler.update_results()
 
     # all done here
     main_elapsed = time.time() - main_start
