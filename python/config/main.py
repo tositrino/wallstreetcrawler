@@ -58,5 +58,6 @@ data_directory = "../data"
 import config.nasdaq as nasdaq
 import config.reddit as reddit
 import config.updates as updates
+import config.aibroker as aibroker
 
 # end of main config

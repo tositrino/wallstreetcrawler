@@ -28,7 +28,7 @@ import src.errorhandler as eh
 import src.nasdaqhandler as nh
 import src.reddithandler as rh
 import src.updatehandler as uh
-import src.hotleads as hl
+import src.aibrokerhandler as ah
 
 
 def show_version(mode: str = ""):
@@ -177,6 +177,12 @@ def main():
     # Setup argument parser
     parser = ArgumentParser()
     parser.add_argument(
+        "--broker",
+        help=f"start ai broker analysis",
+        action="store_true",
+        required=False,
+    )
+    parser.add_argument(
         "--clean", "-c", action="store_true", help="Remove previous results"
     )
     parser.add_argument("--crawl", "-C", action="store_true", help="run crawler")
@@ -318,6 +324,8 @@ def main():
         nasdaq_handler = nh.NasdaqHandler()
         reddit_handler = rh.RedditHandler()
         update_handler = uh.UpdateHandler()
+        aibroker_handler = ah.AiBrokerHandler()
+
         # do we download and process nasdaq listings ?
         if args.nasdaq_download is not None and args.nasdaq_download == True:
             eh.debug_print(
@@ -351,6 +359,14 @@ def main():
                 f"DEBUG: update excel result file [{config.updates.excel_result_name}]",
             )
             update_handler.update_results()
+
+        # do we ask the ai broker::
+        if args.broker is not None and args.broker == True:
+            eh.debug_print(
+                dblth,
+                f"DEBUG: ask ai broker for analysis [{config.aibroker.model_name}]",
+            )
+            aibroker_handler.analysis()
 
     # all done here
     main_elapsed = time.time() - main_start

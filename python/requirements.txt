@@ -1,5 +1,6 @@
 black
 dotenv
+google-genai
 matplotlib
 numpy
 openpyxl
