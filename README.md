@@ -14,9 +14,9 @@ but the code ist mostly done w/o claude ;-)
 
   | wallstreetcrawler ||
   |:--|:--|
-  | file version  | 0.3.1 |
+  | file version  | 0.4.1 |
   | file created  | 2025/07/17 |
-  | last change   | 2025/07/20 |
+  | last change   | 2025/07/22 |
   
 ## setup and installation information
    - see README.md in the python subdirectory and/or the specific README for your OS under /docs/python (if any)
