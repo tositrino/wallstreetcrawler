@@ -1,5 +1,5 @@
 """
-reddithandler.py - handles reddit
+updatehandler.py - handles data updates
 """
 
 # standard includes
@@ -24,8 +24,8 @@ import config.main as config
 # local modules
 import src.errorhandler as eh
 
-# reddit handler class
-# this class handles the reddit posts data
+# update handler class
+# this class handles data updates
 
 
 class UpdateHandler:

@@ -25,7 +25,6 @@ import src.errorhandler as eh
 # aibroker handler class
 # this class handles the ai broker
 
-
 class AibrokerHandler:
     def __init__(
         self,

@@ -59,5 +59,6 @@ import config.nasdaq as nasdaq
 import config.reddit as reddit
 import config.updates as updates
 import config.aibroker as aibroker
+import config.reports as reports
 
 # end of main config

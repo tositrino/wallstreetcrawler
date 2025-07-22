@@ -29,6 +29,7 @@ import src.nasdaqhandler as nh
 import src.reddithandler as rh
 import src.updatehandler as uh
 import src.aibrokerhandler as ah
+import src.reportshandler as rh
 
 
 def show_version(mode: str = ""):
@@ -220,13 +221,19 @@ def main():
         required=False,
         default="",
     )
+    parser.add_argument("--quiet", "-q", help="be quiet", action="store_true")
     parser.add_argument(
         "--reddit_work_dir",
         help=f"reddit work directory, default=[{config.reddit.work_directory}]",
         required=False,
         default="",
     )
-    parser.add_argument("--quiet", "-q", help="be quiet", action="store_true")
+    parser.add_argument(
+        "--reports",
+        help=f"generate reports",
+        action="store_true",
+        required=False,
+    )
     parser.add_argument(
         "--search",
         help=f"search [symbol] in reddit posts",
@@ -325,6 +332,7 @@ def main():
         reddit_handler = rh.RedditHandler()
         update_handler = uh.UpdateHandler()
         aibroker_handler = ah.AibrokerHandler()
+        reports_handler = rh.ReportsHandler()
 
         # do we download and process nasdaq listings ?
         if args.nasdaq_download is not None and args.nasdaq_download == True:
@@ -367,6 +375,14 @@ def main():
                 f"DEBUG: ask ai broker for analysis [{config.aibroker.model_name}]",
             )
             aibroker_handler.analysis()
+
+        # generate reports ?
+        if args.reports is not None and args.reports == True:
+            eh.debug_print(
+                dblth,
+                f"DEBUG: generate reports:",
+            )
+            reports_handler.generate()
 
     # all done here
     main_elapsed = time.time() - main_start
