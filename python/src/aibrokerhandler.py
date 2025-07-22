@@ -7,11 +7,12 @@ from collections import Counter
 import datetime
 from docx import Document
 import glob
-import google.generativeai as genai
+from google import genai
 import logging
 import os
 import pickle
 import praw
+import sys
 import re
 import time
 
@@ -36,7 +37,8 @@ class AibrokerHandler:
     ):
         self.class_name = "AibrokerHandler"
         self.model_name = model_name
-        self.model = None
+        self.client = None
+        # self.model = None
         self.template_directory = template_dir
         self.result_dir = result_dir
         self.vblth = vblth
@@ -45,19 +47,20 @@ class AibrokerHandler:
 
     def prepare(self):
         """configure the ai broker model"""
-        method_name = "configure"
+        method_name = "prepare"
         method_start = time.time()
         method_status = 0
         eh.verbose_print(
             self.vblth,
             f"{self.class_name}.{method_name} - configure model {self.model_name} ... ",
+            end="",
         )
         if self.prepared:
             eh.verbose_print(self.vblth, f"[already prepared]")
         else:
             try:
-                genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
-                self.model = genai.GenerativeModel(self.model_name)
+                self.client = genai.Client(api_key=os.getenv("GOOGLE_API_KEY"))
+                # self.model = self.client.GenerativeModel(self.model_name)
                 eh.verbose_print(self.vblth, f"[done]")
             except Exception as e:
                 method_status = -1
@@ -69,7 +72,7 @@ class AibrokerHandler:
             1,
             f"{self.class_name}.{method_name} - finished, duration={method_elapsed:2.4f} second(s), status={method_status}:",
         )
-        return method_status
+        return self.prepared
 
     def get_latest_file_group(self, directory):
         """
@@ -82,10 +85,10 @@ class AibrokerHandler:
         same_time_files = []
         eh.verbose_print(
             self.vblth,
-            f"{self.class_name}.{method_name} - searching for files in [{directory}]:",
+            f"{self.class_name}.{method_name} - searching for files in [{directory}] ...",
             end="",
         )
-        pattern = os.path.join(folder_path, "*.pkl")
+        pattern = os.path.join(directory, "*.pkl")
         files = glob.glob(pattern)
         if files is None or len(files) == 0:
             eh.verbose_print(self.vblth, f"[no files found]")
@@ -102,6 +105,9 @@ class AibrokerHandler:
                 for file in files:
                     if os.path.basename(file).startswith(time_id):
                         same_time_files.append(file)
+            eh.verbose_print(
+                self.vblth, f"[done, found #{len(same_time_files)} file(s)]"
+            )
         method_elapsed = time.time() - method_start
         eh.verbose_print(
             1,
@@ -140,13 +146,15 @@ class AibrokerHandler:
         data = None
         eh.verbose_print(
             self.vblth,
-            f"{self.class_name}.{method_name} - loading data from [{filepath}]:",
+            f"{self.class_name}.{method_name} - loading data from [{filepath}] ... ",
             end="",
         )
         try:
             with open(filepath, "rb") as f:
                 data = pickle.load(f)
-            eh.verbose_print(self.vblth, f"[done]")
+            eh.verbose_print(
+                self.vblth, f"[done, loaded #{sys.getsizeof(data,-1)} byte(s)]"
+            )
         except Exception as e:
             method_status = -1
             eh.verbose_print(1, f"[ERROR] - {e}")
@@ -173,7 +181,7 @@ class AibrokerHandler:
             end="",
         )
 
-        if not postdata or len:
+        if not postdata or len(postdata) == 0:
             eh.verbose_print(self.vblth, f"[no post data found]")
         else:
             # ensure we have a list
@@ -231,10 +239,12 @@ class AibrokerHandler:
             f"{self.class_name}.{method_name} - analyzing data with {self.model_name} for {stock_symbol} ... ",
             end="",
         )
-        if not self.model:
-            eh.verbose_print(self.vblth, f"[model not configured]")
+        if not self.client:
+            eh.verbose_print(self.vblth, f"[client not configured]")
         elif not data or len(data) == 0:
             eh.verbose_print(self.vblth, f"[no data to analyze]")
+        elif not stock_symbol or len(stock_symbol) == 0 or stock_symbol == "UNKNOWN":
+            eh.verbose_print(self.vblth, f"[no stock symbol to analyze]")
         else:
             prompt = f"""
           Please analyse the post contents and comments on whether users are bullish or bearish towards the company {stock_symbol}.
@@ -247,7 +257,9 @@ class AibrokerHandler:
           """
         if len(prompt) > 0:
             try:
-                response = self.model.generate_content(prompt)
+                response = self.client.models.generate_content(
+                    model=self.model_name, contents=prompt
+                )
                 eh.verbose_print(self.vblth, f"[done]")
                 analysis = response.text
             except Exception as e:
@@ -267,6 +279,8 @@ class AibrokerHandler:
         method_name = "save_analysis"
         method_start = time.time()
         method_status = 0
+        filename = f"{time_id}analysis.docx"
+        filepath = os.path.join(self.result_dir, filename)
         eh.verbose_print(
             self.vblth,
             f"{self.class_name}.{method_name} - saving analysis results for time ID {time_id} in {self.result_dir} ... ",
@@ -310,8 +324,6 @@ class AibrokerHandler:
                 doc.add_paragraph("-" * 30)
 
                 # save result
-                filename = f"{time_id}analysis.docx"
-                filepath = os.path.join(self.result_dir, filename)
                 doc.save(filepath)
             except Exception as e:
                 method_status = -1
@@ -326,20 +338,25 @@ class AibrokerHandler:
         )
         return method_status, filepath
 
-    def analyse():
+    def analysis(self):
         """
         analyse the latest reddit posts for stock symbols and save the results
         """
-        method_name = "analyse"
+        method_name = "analysis"
         method_start = time.time()
         method_status = 0
+        analysis_results = []
+        file_count = 0
+        error_count = 0
         eh.verbose_print(
             self.vblth,
             f"{self.class_name}.{method_name} - starting analysis: ",
         )
 
         if self.prepare():
-            latest_file, same_time_files = self.get_latest_file_group()
+            latest_file, same_time_files = self.get_latest_file_group(
+                config.reddit.posts_directory
+            )
             if not latest_file or len(latest_file) == 0:
                 return -1
             time_id = self.extract_time_id(latest_file)
@@ -350,29 +367,17 @@ class AibrokerHandler:
             if status != 0 or not posts_meta or len(posts_meta) == 0:
                 return -1
 
-            analysis_results = []
-            file_count = 0
-            error_count = 0
             for file_path in same_time_files:
                 file_count += 1
                 stock_symbol = self.extract_stock_symbol(file_path)
-                eh.verbose_print(
-                    self.vblth,
-                    f"{self.class_name}.{method_name} - analyzing {stock_symbol} from {file_path}] ... ",
-                    end="",
-                )
                 data = self.load_pickle_file(file_path)
                 if not data or len(data) == 0:
                     error_count += 1
-                    eh.verbose_print(self.vblth, f"[no data, ignored]")
                     continue
                 status, analysis_text = self.analyze_with_gemini(data, stock_symbol)
-
-                if analysis_status != 0 or not analysis_text or len(analysis_text) == 0:
+                if status != 0 or not analysis_text or len(analysis_text) == 0:
                     error_count += 1
-                    eh.verbose_print(self.vblth, f"[no analysis text, ignored]")
                     continue
-
                 analysis_results.append((stock_symbol, posts_meta, analysis_text))
                 eh.verbose_print(self.vblth, f"[done]")
 

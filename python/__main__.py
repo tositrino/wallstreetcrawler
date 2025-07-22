@@ -76,7 +76,7 @@ def show_status():
     )
     eh.verbose_print(
         vblth,
-        "   force mode                      = {0}".format(config.force_mode),
+        "   force mode                     = {0}".format(config.force_mode),
     )
     eh.verbose_print(
         vblth, "  verbose level                   = {0}".format(config.verbose_level)
@@ -324,7 +324,7 @@ def main():
         nasdaq_handler = nh.NasdaqHandler()
         reddit_handler = rh.RedditHandler()
         update_handler = uh.UpdateHandler()
-        aibroker_handler = ah.AiBrokerHandler()
+        aibroker_handler = ah.AibrokerHandler()
 
         # do we download and process nasdaq listings ?
         if args.nasdaq_download is not None and args.nasdaq_download == True:
