@@ -5,17 +5,20 @@ crawl reddit channel workstreetbit and counts occurrence of stock symbols in pos
 ## Prerequisites
 
 The following software is necessary steps to be able to work on the project.
-  - git version constrol [1]
-  - python interpreter >= 3.10 [2]
-  - some editor , i.e. zed [3], visual studio code [4] or vim [5]
+  - git version constrol [01]
+  - python interpreter >= 3.10 [02]
+  - some editor , i.e. zed [03], visual studio code [04] or vim [05]
 
 On macos you might install all necessary packages using 
-  - homebrew [6]
-  - macports [7]
+  - homebrew [06]
+  - macports [07]
 
 On windows you might want to use 
-  - scoop [8]
-  - chocolatey [9]
+  - scoop [08]
+  - chocolatey [09]
+
+Additionally, you will need a reddit account with API access and a google account with 
+access to google generative AI. 
 
 ### System Requirements
 
@@ -54,6 +57,42 @@ to setup the project just clone it from the git repository
     (venv) python -m pip install -r requirements.txt
   ```
 
+#### Setup Reddit (from heise article)
+  To be able to access the reddit data, you'll need a reddit account and a reddit application that
+  controls access to the reddit API.
+  - create a reddit account [11]
+  - go to the reddit app development site [12]
+  - create a app 
+    - configure as script :
+      ![app configuration dialog](../docs/images/reddit-app-configure.png "app configuration")
+    - result should look like tihis
+      ![app configuration](../docs/images/reddit-app-configured "app configuration")
+  - From the configured app you will need
+    - app_name   - the name you gave the app
+    - app_user   - your user name
+    - app_id.    - the code below the app name
+    - app_secret - the secrets
+    - app_version- whatever version you give the app
+  - with this you can build an environmant file should contain the folllowing:
+    ```
+    REDDIT_CLIENT_ID=[app_id]
+    REDDIT_CLIENT_SECRET=[app_secret] 
+    REDDIT_USER=[app_user]
+    # leave this empty, it will be generated from the app data
+    REDDIT_USER_AGENT=""
+    ```   
+  - update env_file in ```config/main.py``` with the location of this file
+
+#### Setup gooogle AI/gemini use (from heise article)
+  To access the google AI models and their API youl will need:
+  - a google account [13]
+  - login to the google AI studio [14]
+  - generate an API key there and save it (in your secure storage that you certainly have, haven't you ?)
+  - add it to the above generated env file as
+  ```
+  GEMINI_API_KEY=[your api key]
+  ```
+
 ## Run the project
 
 ### show version and help
@@ -73,15 +112,34 @@ to setup the project just clone it from the git repository
 ```
 
 ## references
-[1] https://git-scm.com/
-[2] https://www.python.org/
-[3] https://zed.dev/
-[4] https://code.visualstudio.com/Download
-[5] https://neovim.io/
-[6] https://brew.sh/
-[7] https://www.macports.org/
-[8] https://scoop.sh/
-[9] https://chocolatey.org/
+
+[01] https://git-scm.com/
+
+[02] https://www.python.org/
+
+[03] https://zed.dev/
+
+[04] https://code.visualstudio.com/Download
+
+[05] https://neovim.io/
+
+[06] https://brew.sh/
+
+[07] https://www.macports.org/
+
+[08] https://scoop.sh/
+
+[09] https://chocolatey.org/
+
+[10] https://pypi.org/project/google-genai/
+
+[11] https://www.reddit.com
+
+[12] https://www.reddit.com/prefs/apps
+
+[13] https://www.google.com
+
+[14] https://ai.google.dev/gemini-api/docs?hl=de
 
 ## Troubleshooting
 
