@@ -29,7 +29,7 @@ import src.nasdaqhandler as nh
 import src.reddithandler as rh
 import src.updatehandler as uh
 import src.aibrokerhandler as ah
-import src.reportshandler as rh
+import src.reportshandler as reph
 
 
 def show_version(mode: str = ""):
@@ -332,7 +332,7 @@ def main():
         reddit_handler = rh.RedditHandler()
         update_handler = uh.UpdateHandler()
         aibroker_handler = ah.AibrokerHandler()
-        reports_handler = rh.ReportsHandler()
+        reports_handler = reph.ReportsHandler()
 
         # do we download and process nasdaq listings ?
         if args.nasdaq_download is not None and args.nasdaq_download == True:

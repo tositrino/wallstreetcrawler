@@ -5,10 +5,12 @@ reddit.py - reddit settings
 
 work_directory = "../intermediate_data/reddit"
 posts_directory = "../intermediate_data/posts"
-result_file_name = "reddit-crawler-results"
-trigger_count = 5
 
 use_subreddit = "wallstreetbets"
+post_file_name_prefix = f"reddit-{use_subreddit}-posts"
+result_file_name_prefix = "reddit-crawler-results"
+trigger_count = 5
+
 cutoff_days = 1
 post_limit = 100
 comment_limit = 100

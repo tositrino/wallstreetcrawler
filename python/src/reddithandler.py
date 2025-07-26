@@ -26,14 +26,14 @@ import src.errorhandler as eh
 class RedditHandler:
     def __init__(
         self,
-        target_dir=config.reddit.work_directory,
+        work_dir=config.reddit.work_directory,
         posts_dir=config.reddit.posts_directory,
         pkl_file="",
         vblth=config.verbose_threshold,
         dblth=config.debug_threshold,
     ):
         self.class_name = "RedditHandler"
-        self.target_dir = target_dir
+        self.work_dir = work_dir
         self.pkl_file = pkl_file
         self.vblth = vblth
         self.dblth = dblth
@@ -82,7 +82,7 @@ class RedditHandler:
         )
         self.post_file_path = os.path.join(
             self.posts_dir,
-            f"posts-{config.reddit.use_subreddit}-{self.run_id}.pkl",
+            f"{config.reddit.post_file_name_prefix}_{self.run_id}.pkl",
         )
         eh.verbose_print(1, f"[done, path={self.post_file_path}]")
         return self.post_file_path
@@ -129,17 +129,17 @@ class RedditHandler:
                 )
                 eh.verbose_print(1, "[done]")
                 # make sure the target directory exists
-                if os.path.exists(self.target_dir):
+                if os.path.exists(self.work_dir):
                     eh.debug_print(
                         1,
-                        f"{self.class_name}.{method_name} - target directory [{self.target_dir}] exists",
+                        f"{self.class_name}.{method_name} - work directory [{self.work_dir}] exists",
                     )
                 else:  # create target directory if it does not exist
                     eh.debug_print(
                         1,
-                        f"{self.class_name}.{method_name} - target directory [{self.target_dir}] does not exist, creating it",
+                        f"{self.class_name}.{method_name} - work directory [{self.work_dir}] does not exist, creating it",
                     )
-                    os.makedirs(self.target_dir, exist_ok=True)
+                    os.makedirs(self.work_dir, exist_ok=True)
 
                 # setup/update post data file path
                 self.update_post_file_path()
@@ -351,7 +351,7 @@ class RedditHandler:
                     if matches > 0:
                         self.symbol_counts[symbol] += matches
                         eh.verbose_print(1, f"[{symbol} matches {matches}] ", end="")
-                eh.verbose_print(1, "[done]\n")
+                eh.verbose_print(1, "[done]")
 
             eh.verbose_print(
                 1,
@@ -377,7 +377,7 @@ class RedditHandler:
                 }
                 self.result_file_path = os.path.join(
                     config.reddit.work_directory,
-                    f"{config.reddit.result_file_name}-{self.run_id}.pkl",
+                    f"{config.reddit.result_file_name_prefix}_{self.run_id}.pkl",
                 )
                 eh.verbose_print(
                     1,

@@ -7,14 +7,14 @@ from collections import Counter, OrderedDict
 from docx import Document
 from docx.shared import Pt
 import datetime
+import glob
 import io
 import logging
 import os
 from openpyxl import load_workbook
 import pandas as pd
-import shutil
 import pickle
-import praw
+import shutil
 import re
 import time
 
@@ -33,12 +33,24 @@ class UpdateHandler:
         self,
         template_dir=config.updates.template_directory,
         result_dir=config.updates.result_directory,
+        hotleads_input_dir=config.reddit.work_directory,
+        hotleads_input_prefix=config.reddit.result_file_name_prefix,
+        hotleads_dir=config.updates.hotleads_directory,
+        hotleads_prefix=config.reddit.result_file_name_prefix,
+        posts_dir=config.reddit.posts_directory,
+        posts_prefix=config.reddit.post_file_name_prefix,
         vblth=config.verbose_threshold,
         dblth=config.debug_threshold,
     ):
         self.class_name = "UpdateHandler"
         self.template_directory = template_dir
-        self.result_dir = result_dir
+        self.result_directory = result_dir
+        self.hotleads_input_directory = hotleads_input_dir
+        self.hotleads_input_prefix = hotleads_input_prefix
+        self.hotleads_directory = hotleads_dir
+        self.hotleads_prefix = hotleads_prefix
+        self.posts_directory = posts_dir
+        self.posts_prefix = posts_prefix
         self.vblth = vblth
         self.dblth = dblth
 
@@ -255,11 +267,11 @@ class UpdateHandler:
             eh.verbose_print(self.vblth, f"[done]")
             eh.verbose_print(
                 self.vblth,
-                f"{self.class_name}.{method_name} - existing headers: \n. {existing_headers}",
+                f"{self.class_name}.{method_name} - existing headers: \n  {existing_headers}",
             )
             eh.verbose_print(
                 self.vblth,
-                f"{self.class_name}.{method_name} - DataFrame columns: \n {list(df.columns)}",
+                f"{self.class_name}.{method_name} - dataFrame columns: \n  {list(df.columns)}",
             )
 
             # remove old data
@@ -357,7 +369,7 @@ class UpdateHandler:
         return df
 
     def save_word_result(self, hits, file_name):
-        """update and save latest results as word documenta and pickle file"""
+        """update and save latest results as word document and pickle file"""
         method_name = "save_word_result"
         method_start = time.time()
         method_status = 0
@@ -377,10 +389,14 @@ class UpdateHandler:
                     p.style.font.size = Pt(12)
                 doc.add_paragraph("")
             # save docx file
-            docx_filename = os.path.join(self.result_dir, f"{prefix}_hotleads.docx")
+            docx_filename = os.path.join(
+                self.result_directory, f"{prefix}_hotleads.docx"
+            )
             doc.save(docx_filename)
             # save pickle file
-            pickle_filename = os.path.join(self.result_dir, f"{prefix}_hotleads.pkl")
+            pickle_filename = os.path.join(
+                self.result_directory, f"{prefix}_hotleads.pkl"
+            )
             with open(pickle_filename, "wb") as f:
                 pickle.dump(hits, f)
         except Exception as e:
@@ -422,7 +438,8 @@ class UpdateHandler:
                 values = []
                 for r in result_list:
                     values.append(r.get(symbol, 0))
-
+                while len(values) < 3:
+                    values.insert(0, 0)
                 latest_value = values[2]
                 prev_value = values[1]
                 avg_prev2 = (values[0] + values[1]) / 2
@@ -449,7 +466,410 @@ class UpdateHandler:
         )
         return method_status
 
+    def create_hotleads(self):
+        """
+        create hotleads data files from hotleads input dir.
+        """
+        method_name = "create_hotleads"
+        method_start = time.time()
+        method_status = 0
+        eh.verbose_print(
+            self.vblth, f"{self.class_name}.{method_name} - create hotleads data files:"
+        )
+        inputs_data = []
+        try:
+            os.makedirs(self.hotleads_directory, exist_ok=True)
+            # find all pickle files in input dir
+            eh.verbose_print(
+                self.vblth,
+                f"{self.class_name}.{method_name} - searching for hotlead input data files ... ",
+                end="",
+            )
+            inputs_pattern = os.path.join(
+                self.hotleads_input_directory, f"{self.hotleads_input_prefix}_*.pkl"
+            )
+            inputs_files = glob.glob(inputs_pattern)
+            if not inputs_files or len(inputs_files) == 0:
+                eh.verbose_print(self.vblth, f"[no input data files found]")
+            else:
+                eh.verbose_print(
+                    self.vblth, f"[found #{len(inputs_files)} input data file(s)]"
+                )
+                for fpath in inputs_files:
+                    fname = os.path.basename(fpath)
+                    ftimestamp = fname.split("_")[1]
+                    eh.verbose_print(
+                        self.vblth,
+                        f"{self.class_name}.{method_name} - loading data from [{fname}] ... ",
+                        end="",
+                    )
+                    inputs_data = []
+                    with open(fpath, "rb") as f:
+                        inputs_data.append(pickle.load(f))
+                    input_run_ids = [d.get("run_id", "undefined") for d in inputs_data]
+                    inputs_results = [
+                        d.get("results", "undefined") for d in inputs_data
+                    ]
+                    inputs_symbols = set()
+                    for r in inputs_results:
+                        inputs_symbols.update(r.keys())
+                    eh.verbose_print(
+                        self.vblth,
+                        f"[done, #{len(inputs_results)}n results, #{len(inputs_symbols)} symbols]",
+                    )
+
+                    eh.verbose_print(
+                        self.vblth,
+                        f"{self.class_name}.{method_name} - detecting hits in input data ... ",
+                        end="",
+                    )
+                    hits = OrderedDict()
+                    for symbol in inputs_symbols:
+                        values = []
+                        for r in inputs_results:
+                            values.append(r.get(symbol, 0))
+                        while len(values) < 3:
+                            values.insert(0, 0)
+                        latest_value = values[2]
+                        prev_value = values[1]
+                        avg_prev2 = (values[0] + values[1]) / 2
+
+                        if (
+                            latest_value > prev_value
+                            or latest_value > avg_prev2
+                            or (values[0] == 0 and values[1] == 0 and latest_value > 0)
+                        ):
+                            hits[symbol] = {"run_ids": input_run_ids, "values": values}
+                    if not hits or len(hits) == 0:
+                        eh.verbose_print(self.vblth, f"[no hits detected]")
+                    else:
+                        eh.verbose_print(self.vblth, f"[found #{len(hits)} hit(s)]")
+                        # create docx data and save
+                        eh.verbose_print(
+                            self.vblth,
+                            f"{self.class_name}.{method_name} - saving hotleads as docx files ... ",
+                            end="",
+                        )
+                        doc = Document()
+                        doc.add_heading(
+                            f"matches for run_id {ftimestamp} from ${fname}", level=1
+                        )
+                        for symbol, data in hits.items():
+                            doc.add_heading(symbol, level=2)
+                            for run_id, value in zip(data["run_ids"], data["values"]):
+                                p = doc.add_paragraph(f"{run_id}: {value}")
+                                p.style.font.size = Pt(12)
+                            doc.add_paragraph("")
+                        docx_path = os.path.join(
+                            config.updates.hotleads_directory,
+                            f"{self.hotleads_prefix}_{ftimestamp}_hotleads.docs",
+                        )
+                        doc.save(docx_path)
+                        eh.verbose_print(self.vblth, f"[done]")
+                        # save pickle data
+                        eh.verbose_print(
+                            self.vblth,
+                            f"{self.class_name}.{method_name} - saving hotleads as pkl files ... ",
+                            end="",
+                        )
+                        pkl_path = os.path.join(
+                            config.updates.hotleads_directory,
+                            f"{self.hotleads_prefix}_{ftimestamp}_hotleads.pkl",
+                        )
+                        with open(pkl_path, "wb") as f:
+                            pickle.dump(hits, f)
+                        eh.verbose_print(self.vblth, f"[done]")
+        except Exception as e:
+            method_status = -1
+            eh.verbose_print(self.vblth, "[ERROR]")
+            eh.verbose_print(
+                self.vblth, f"{self.class_name}.{method_name} - exception occurred: {e}"
+            )
+        method_elapsed = time.time() - method_start
+        eh.verbose_print(
+            1,
+            f"{self.class_name}.{method_name} - finished, duration={method_elapsed:2.4f} second(s), status={method_status}:",
+        )
+        return method_status
+
+    def find_files_and_extract_timestamp(self):
+        """
+        Find the latest Hotleads and Posts files and extract the timestamp.
+
+        Args:
+            base_dir (str): Base directory to search for files.
+
+        Returns:
+            tuple: (hotleads_file, posts_file, timestamp) or (None, None, None)
+        """
+        method_name = "find_files_and_extract_timestamp"
+        method_start = time.time()
+        method_status = 0
+        eh.verbose_print(
+            self.vblth,
+            f"{self.class_name}.{method_name} - searching for hotleads ...",
+            end="",
+        )
+
+        # prepare results
+        found_files = []
+        hotleads_file = None
+        posts_file = None
+        timestamp = None
+
+        # search for hotleads and posts files
+        hotleads_pattern = os.path.join(
+            self.hotleads_directory, f"{self.hotleads_prefix}_*_hotleads.pkl"
+        )
+        hotleads_files = glob.glob(hotleads_pattern)
+        if not hotleads_files or len(hotleads_files) == 0:
+            eh.verbose_print(self.vblth, f"[no hotleads found]")
+        else:
+            eh.verbose_print(
+                self.vblth, f"[found #{len(hotleads_files)} hotleads file(s)]"
+            )
+            for hf in hotleads_files:
+                hotleads_timestamp = hf.split("_")[1]
+                fd = {
+                    "timestamp": hotleads_timestamp,
+                    "hotleads_file": hf,
+                    "posts_file": "",
+                }
+                found_files.append(fd)
+
+        eh.verbose_print(
+            self.vblth,
+            f"{self.class_name}.{method_name} - searching for posts ...",
+            end="",
+        )
+        posts_pattern = os.path.join(self.posts_directory, f"{self.posts_prefix}_*.pkl")
+        posts_files = glob.glob(posts_pattern)
+        if not posts_files or len(posts_files) == 0:
+            eh.verbose_print(self.vblth, f"[no posts found]")
+        else:
+            eh.verbose_print(self.vblth, f"[found #{len(posts_files)} posts file(s)]")
+            eh.verbose_print(
+                self.vblth,
+                f"{self.class_name}.{method_name} - update found files record ...",
+                end="",
+            )
+            for pf in posts_files:
+                posts_timestamp = pf.split("_")[1]
+                append = True
+                for fd in found_files:
+                    if fd["timestamp"] == posts_timestamp:
+                        fd["posts_file"] = pf
+                        append = False
+                        break
+                if append:
+                    fd = {
+                        "timestamp": posts_timestamp,
+                        "hotleads_file": "",
+                        "posts_file": pf,
+                    }
+                    found_files.append(fd)
+            eh.verbose_print(
+                self.vblth, f"[done, updated #{len(found_files)} record(s)]"
+            )
+
+        eh.verbose_print(
+            self.vblth,
+            f"{self.class_name}.{method_name} - select latest valid record ...",
+            end="",
+        )
+        if len(found_files) > 0:
+            # now sort found files by timestamp
+            found_files = sorted(found_files, key=lambda x: x["timestamp"])
+            # get the latest entry file where both hotleads and posts are available
+            for fd in found_files:
+                if fd["hotleads_file"] and fd["posts_file"]:
+                    hotleads_file = fd["hotleads_file"]
+                    posts_file = fd["posts_file"]
+                    timestamp = fd["timestamp"]
+                    eh.verbose_print(
+                        self.vblth,
+                        f"[found hotleads and posts for timestamp {timestamp}]",
+                    )
+                    break
+        if (
+            not hotleads_file
+            or not posts_file
+            or not timestamp
+            or len(hotleads_file) == 0
+            or len(posts_file) == 0
+            or len(timestamp) == 0
+        ):
+            method_status = -1
+            eh.verbose_print(self.vblth, "[done, no valid record found")
+        else:
+            eh.verbose_print(self.vblth, f"[done, valid record found at [{timestamp}]]")
+            eh.verbose_print(self.vblth, f". hotleads : {hotleads_file}]")
+            eh.verbose_print(self.vblth, f". posts    : [{posts_file}]")
+
+        method_elapsed = time.time() - method_start
+        eh.verbose_print(
+            1,
+            f"{self.class_name}.{method_name} - finished, duration={method_elapsed:2.4f} second(s), status={method_status}:",
+        )
+        return method_status, hotleads_file, posts_file, timestamp
+
+    def process_hotleads_and_posts(self, hotleads_file, posts_file, timestamp):
+        """
+        Process Hotleads and Posts files and create filtered output files.
+
+        Args:
+            hotleads_file (str): Path to the Hotleads file.
+            posts_file (str): Path to the Posts file.
+            timestamp (str): Timestamp extracted from the Hotleads file name.
+        """
+        method_name = "process_hotleads_and_posts"
+        method_start = time.time()
+        method_status = 0
+
+        filtered_posts = {}
+        total_files_saved = 0
+        matched_posts = None
+
+        # load hotleads data
+        try:
+            eh.verbose_print(
+                self.vblth,
+                f"{self.class_name}.{method_name} - loading hotleads file ... ",
+                end="",
+            )
+            with open(hotleads_file, "rb") as f:
+                hotleads_data = pickle.load(f)
+            eh.verbose_print(self.vblth, f"[#{len(hotleads_data)} hotleads]", end="")
+        except FileNotFoundError:
+            method_status = -1
+            eh.verbose_print(
+                self.vblth, f"[ERROR]\n. hotleads file not found: {hotleads_file}"
+            )
+        # load posts data
+        try:
+            eh.verbose_print(
+                self.vblth,
+                f"{self.class_name}.{method_name} - loading posts file ... ",
+                end="",
+            )
+            with open(posts_file, "rb") as f:
+                posts_data = pickle.load(f)
+            eh.verbose_print(self.vblth, f"[#{len(posts_data)} posts]", end="")
+        except FileNotFoundError:
+            method_status = -1
+            eh.verbose_print(
+                self.vblth, f"[ERROR]\n. posts file not found: {posts_file}"
+            )
+
+        if method_status == 0:
+            # extract stock symbols from hotleads
+            stock_symbols = set(hotleads_data.keys())
+            eh.verbose_print(
+                self.vblth,
+                f"{self.class_name}.{method_name} - symbols to handle:\n [{', '.join(stock_symbols)} ]",
+            )
+
+            # filter posts based on stock symbols
+            for symbol in stock_symbols:
+                eh.verbose_print(
+                    self.vblth,
+                    f"{self.class_name}.{method_name} - filter for symbol [{symbol}] ... ",
+                    end="",
+                )
+                matched_posts = []
+                for post in posts_data:
+                    title = post.get("title", "")
+                    content = post.get("content", "")
+                    title_match = re.search(r"\b" + re.escape(symbol) + r"\b", title)
+                    content_match = re.search(
+                        r"\b" + re.escape(symbol) + r"\b", content
+                    )
+
+                    if title_match or content_match:
+                        matched_posts.append(post)
+
+                eh.verbose_print(
+                    self.vblth,
+                    f"[done, {len(matched_posts)} match(es)]",
+                )
+                if matched_posts is not None and len(matched_posts) > 0:
+                    filtered_posts[symbol] = matched_posts
+                    # save each symbol data to a separate file
+                    for idx, single_post in enumerate(matched_posts, start=1):
+                        output_filename = f"{timestamp}_{symbol}{idx:02d}.pkl"
+                        output_path = os.path.join(
+                            self.hotleads_directory, output_filename
+                        )
+                        eh.verbose_print(
+                            self.vblth,
+                            f"{self.class_name}.{method_name} - save symbol data as [{output_filename}] ... ",
+                            end="",
+                        )
+                        with open(output_path, "wb") as f:
+                            pickle.dump([single_post], f)
+                        total_files_saved += 1
+                        eh.verbose_print(
+                            self.vblth,
+                            f"[done, (Post-ID: {single_post.get('post_id', 'N/A')})]",
+                        )
+
+        eh.verbose_print(
+            self.vblth,
+            f" found #{len(filtered_posts)} symbols with matches",
+        )
+        eh.verbose_print(
+            self.vblth,
+            f" created #{total_files_saved} file(s) saved",
+        )
+
+        method_elapsed = time.time() - method_start
+        eh.verbose_print(
+            1,
+            f"{self.class_name}.{method_name} - finished, duration={method_elapsed:2.4f} second(s), status={method_status}:",
+        )
+        return method_status, filtered_posts
+
+    def update_hotleads_posts(self):
+        """
+        Update Hotleads and Posts data by finding the latest files and processing them.
+
+        Returns:
+            dict: Filtered posts data indexed by stock symbols.
+        """
+        method_name = "update_hotleads_posts"
+        method_status = 0
+        eh.verbose_print(self.vblth, f"{self.class_name}.{method_name} - start:")
+
+        # find latest hotleads and posts files
+        status, hotleads_file, posts_file, timestamp = (
+            self.find_files_and_extract_timestamp()
+        )
+        if status != 0 or not hotleads_file or not posts_file or not timestamp:
+            method_status = -1
+            eh.verbose_print(
+                self.vblth, f"[ERROR] - no valid hotleads or posts files found"
+            )
+        else:
+            # process hotleads and posts files
+            status, filtered_posts = self.process_hotleads_and_posts(
+                hotleads_file, posts_file, timestamp
+            )
+            if status != 0 or filtered_posts is None:
+                method_status = -1
+                eh.verbose_print(self.vblth, f"[ERROR] - no valid posts discovered")
+        eh.verbose_print(
+            self.vblth,
+            f"{self.class_name}.{method_name} - finished, status[{method_status}]",
+        )
+        return method_status
+
     def update_results(self):
         "update results by calling all update functions"
+
+        method_name = "update_results"
+        eh.verbose_print(self.vblth, f"{self.class_name}.{method_name} - start:")
         self.pickles_to_excel_result()
         self.pickles_to_word_result()
+        self.create_hotleads()
+        self.update_hotleads_posts()
+        eh.verbose_print(self.vblth, f"{self.class_name}.{method_name} - finished")

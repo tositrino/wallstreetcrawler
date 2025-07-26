@@ -10,7 +10,7 @@ import os
 APP_VERNAME = "wallstreetcrawler"
 APP_VERID = "0.4.1"
 APP_VERINFO = "crawl through reddits and collect wallstreet infos"
-APP_RELDATE = "2025/07/22"
+APP_RELDATE = "2025/07/26"
 APP_RELINFO = "v0.4.1"
 APP_COPYRIGHT = "copyright (c) 2025 by development at ths dot one"
 APP_LICENSE = "GPL3"
@@ -53,7 +53,9 @@ env_file = f"~/lsr/etc/env/{APP_VERNAME}.env"
 
 # directory settings
 data_directory = "../data"
+intermediate_data_directory = "../intermediate_data"
 
+# main config
 # import all other configs here
 import config.nasdaq as nasdaq
 import config.reddit as reddit
