@@ -109,6 +109,10 @@ to setup the project just clone it from the git repository
   python __main__.py --crawl
   # update result 
   python __main__.py --update
+  # update result 
+  python __main__.py --aibroker
+  # update result 
+  python __main__.py --report
 ```
 
 ## references

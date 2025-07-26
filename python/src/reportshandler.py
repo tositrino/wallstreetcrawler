@@ -157,7 +157,8 @@ class ReportsHandler:
         eh.verbose_print(
             self.vblth, f"{self.class_name}.{method_name} - generate full report:"
         )
-
+        os.makedirs(self.classic_directory, exist_ok=True)
+        os.makedirs(self.ai_directory, exist_ok=True)
         # Find latest files and prefixes
         status, latest_file1, prefix1 = self.find_latest_file_and_prefix(
             self.classic_directory

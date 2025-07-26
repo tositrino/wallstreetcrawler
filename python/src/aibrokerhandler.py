@@ -25,6 +25,7 @@ import src.errorhandler as eh
 # aibroker handler class
 # this class handles the ai broker
 
+
 class AibrokerHandler:
     def __init__(
         self,
@@ -294,7 +295,7 @@ class AibrokerHandler:
                 doc = Document()
                 doc.add_heading(f"Analysis for the time id {time_id}", level=1)
                 doc.add_paragraph(
-                    f'analysis generated: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}'
+                    f'analysis generated: {datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}'
                 )
                 doc.add_paragraph("=" * 50)
 
@@ -353,50 +354,74 @@ class AibrokerHandler:
         )
 
         if self.prepare():
-            latest_file, same_time_files = self.get_latest_file_group(
-                config.reddit.posts_directory
-            )
-            if not latest_file or len(latest_file) == 0:
-                return -1
-            time_id = self.extract_time_id(latest_file)
-            data = self.load_pickle_file(latest_file)
-            if not data or len(data) == 0:
-                return -1
-            status, posts_meta = self.extract_post_meta(data)
-            if status != 0 or not posts_meta or len(posts_meta) == 0:
-                return -1
-
-            for file_path in same_time_files:
-                file_count += 1
-                stock_symbol = self.extract_stock_symbol(file_path)
-                data = self.load_pickle_file(file_path)
-                if not data or len(data) == 0:
-                    error_count += 1
-                    continue
-                status, analysis_text = self.analyze_with_gemini(data, stock_symbol)
-                if status != 0 or not analysis_text or len(analysis_text) == 0:
-                    error_count += 1
-                    continue
-                analysis_results.append((stock_symbol, posts_meta, analysis_text))
-                eh.verbose_print(self.vblth, f"[done]")
-
-            # now save all this
-            eh.verbose_print(
-                self.vblth,
-                f"{self.class_name}.{method_name} - saving analysis results ... ",
-                end="",
-            )
-            if not analysis_results or len(analysis_results) == 0:
-                eh.verbose_print(self.vblth, f"[no analysis results to save]")
-            else:
-                status, filepath = self.save_analysis(
-                    analysis_results, posts_meta, time_id
+            try:
+                latest_file, same_time_files = self.get_latest_file_group(
+                    config.updates.hotleads_directory
                 )
-                if status == 0:
-                    eh.verbose_print(self.vblth, f"[done, saved to {filepath}]")
+                if not latest_file or len(latest_file) == 0:
+                    return -1
+                time_id = self.extract_time_id(latest_file)
+                data = self.load_pickle_file(latest_file)
+                if not data or len(data) == 0:
+                    return -1
+                status, posts_meta = self.extract_post_meta(data)
+                if status != 0 or not posts_meta or len(posts_meta) == 0:
+                    return -1
+
+                for file_path in same_time_files:
+                    file_count += 1
+                    stock_symbol = self.extract_stock_symbol(file_path)
+                    data = self.load_pickle_file(file_path)
+                    if not data or len(data) == 0:
+                        error_count += 1
+                        continue
+                    status, analysis_text = self.analyze_with_gemini(data, stock_symbol)
+                    if status != 0 or not analysis_text or len(analysis_text) == 0:
+                        error_count += 1
+                        continue
+                    analysis_path = os.path.join(
+                        self.result_dir, f"{time_id}_{stock_symbol}_analysis.txt"
+                    )
+                    # save analysis text to a file
+                    with open(analysis_path, "w") as f:
+                        f.write(analysis_text)
+                    eh.verbose_print(self.vblth, f"[saved]", end="")
+                    eh.verbose_print
+                    analysis_results.append((stock_symbol, posts_meta, analysis_text))
+                    eh.verbose_print(self.vblth, f"[done]")
+
+                # now save all this
+                eh.verbose_print(
+                    self.vblth,
+                    f"{self.class_name}.{method_name} - saving analysis results ... ",
+                    end="",
+                )
+                if not analysis_results or len(analysis_results) == 0:
+                    eh.verbose_print(self.vblth, f"[no analysis results to save]")
                 else:
-                    eh.verbose_print(self.vblth, f"[ERROR] - saving analysis failed")
-                    error_count += 1
+                    status, filepath = self.save_analysis(
+                        analysis_results, posts_meta, time_id
+                    )
+                    if status == 0:
+                        eh.verbose_print(self.vblth, f"[done, saved to {filepath}]")
+                    else:
+                        eh.verbose_print(
+                            self.vblth, f"[ERROR] - saving analysis failed"
+                        )
+                        error_count += 1
+            except Exception as e:
+                method_status = -1
+                eh.verbose_print(self.vblth, "[ERROR]")
+                eh.verbose_print(
+                    self.vblth,
+                    f"{self.class_name}.{method_name} - exception occurred: {e}",
+                )
+        method_elapsed = time.time() - method_start
+        eh.verbose_print(
+            1,
+            f"{self.class_name}.{method_name} - finished, duration={method_elapsed:2.4f} second(s), status={method_status}:",
+        )
+        return method_status
 
         if error_count > 0:
             method_status = -1

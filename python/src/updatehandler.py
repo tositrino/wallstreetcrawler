@@ -629,7 +629,8 @@ class UpdateHandler:
                 self.vblth, f"[found #{len(hotleads_files)} hotleads file(s)]"
             )
             for hf in hotleads_files:
-                hotleads_timestamp = hf.split("_")[1]
+                hfname = os.path.basename(hf)
+                hotleads_timestamp = hfname.split("_")[1].split(".")[0]
                 fd = {
                     "timestamp": hotleads_timestamp,
                     "hotleads_file": hf,
@@ -654,7 +655,8 @@ class UpdateHandler:
                 end="",
             )
             for pf in posts_files:
-                posts_timestamp = pf.split("_")[1]
+                pfname = os.path.basename(pf)
+                posts_timestamp = pfname.split("_")[1].split(".")[0]
                 append = True
                 for fd in found_files:
                     if fd["timestamp"] == posts_timestamp:
@@ -682,6 +684,7 @@ class UpdateHandler:
             found_files = sorted(found_files, key=lambda x: x["timestamp"])
             # get the latest entry file where both hotleads and posts are available
             for fd in found_files:
+                # print(f"[{fd}]")
                 if fd["hotleads_file"] and fd["posts_file"]:
                     hotleads_file = fd["hotleads_file"]
                     posts_file = fd["posts_file"]
@@ -739,7 +742,7 @@ class UpdateHandler:
             )
             with open(hotleads_file, "rb") as f:
                 hotleads_data = pickle.load(f)
-            eh.verbose_print(self.vblth, f"[#{len(hotleads_data)} hotleads]", end="")
+            eh.verbose_print(self.vblth, f"[#{len(hotleads_data)} hotleads]")
         except FileNotFoundError:
             method_status = -1
             eh.verbose_print(
@@ -754,7 +757,7 @@ class UpdateHandler:
             )
             with open(posts_file, "rb") as f:
                 posts_data = pickle.load(f)
-            eh.verbose_print(self.vblth, f"[#{len(posts_data)} posts]", end="")
+            eh.verbose_print(self.vblth, f"[#{len(posts_data)} posts]")
         except FileNotFoundError:
             method_status = -1
             eh.verbose_print(
