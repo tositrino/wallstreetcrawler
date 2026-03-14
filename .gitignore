@@ -1,4 +1,10 @@
 #
+# .gitignore
+#
+#  file version  : 0.3.3
+#  file created  : 2019/06/01
+#  last change   : 2025/12/11
+#
 # NOTE! Please use 'git ls-files -i --exclude-standard'
 # command after changing this file, to see if there are
 # any tracked files which get ignored after the change.
@@ -24,18 +30,25 @@ Icon
 bin
 build
 builds
-# do not checkin secrets/credentials
+# do not checkin secrets/credentials/local environment
+.env*
+.pgpass*
+.secret*
+.credentials*
 credentials
 ## do not include documentation_html directories (doxygen generated stuff)
 documentations_html
 ## do not include intermediate_data directories (as the name says)
 intermediate_data
+## ignore chache folders
+cache
+.cache
 ## python specific
 venv/
 venv*/
 gpuenv/
 gpuenv*/
-__pychache__
+__pycache__
 work
 *.bak
 *.pyc
@@ -58,17 +71,55 @@ target
 *.pdb
 *.lastbuildstate
 *.xdc
+# ansible
+# Ansible runtime and backups
+*.original
+*.tmp
+*.bkp
+*.retry
+*.*~
+# ansible tower runtime roles
+roles/**
+!roles/requirements.yml
+# terraform
+.terraform/
+.terraform*
+*.tfstate
+*.tfstate.backup
 # vscode stuff
-*/.dist
-*/.vscode
+.dist
+.vscode
+# zed
+.zed
+.ropeproject
 # idea/grade/build
 /build/
 /.idea/
 /.gradle/
+*.iml
+misc.xml
+deploymentTargetDropDown.xml
+render.experimental.xml
+.gradle
+/captures
+.externalNativeBuild
+.cxx
+*.apk
+output.json
+local.properties
+*.tflite
+# Keystore files
+*.jks
+*.keystore
+# Google Services (e.g. APIs or Firebase)
+google-services.json
+# Android Profiling
+*.hprof
 # project specific
 # no prefs and saves
 *.prefs
-data/games/
-data/logs/
-data/crop/
 .fake
+
+
+
+
